@@ -27,5 +27,8 @@
     <ClCompile Include="..\uefi-driver\driver.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\uefi-driver\logging.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>

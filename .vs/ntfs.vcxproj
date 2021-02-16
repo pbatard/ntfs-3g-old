@@ -42,6 +42,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\uefi-driver\driver.c" />
+    <ClCompile Include="..\uefi-driver\logging.c" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{DFA0BA98-D0BA-4176-9A34-B5BA6355B1DE}</ProjectGuid>
@@ -189,7 +190,7 @@
       <LinkLibraryDependencies>true</LinkLibraryDependencies>
     </ProjectReference>
     <Link>
-      <AdditionalDependencies>gnu-efi.lib;libcmtd.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>gnu-efi.lib;libntfs-3g.lib;libcmtd.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <RandomizedBaseAddress />
       <DataExecutionPrevention>false</DataExecutionPrevention>
       <IgnoreAllDefaultLibraries>true</IgnoreAllDefaultLibraries>
@@ -218,7 +219,7 @@
       <LinkLibraryDependencies>true</LinkLibraryDependencies>
     </ProjectReference>
     <Link>
-      <AdditionalDependencies>gnu-efi.lib;libcmtd.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>gnu-efi.lib;libntfs-3g.lib;libcmtd.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <RandomizedBaseAddress />
       <DataExecutionPrevention>false</DataExecutionPrevention>
       <IgnoreAllDefaultLibraries>true</IgnoreAllDefaultLibraries>
@@ -246,7 +247,7 @@
       <LinkLibraryDependencies>true</LinkLibraryDependencies>
     </ProjectReference>
     <Link>
-      <AdditionalDependencies>gnu-efi.lib;libcmtd.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>gnu-efi.lib;libntfs-3g.lib;libcmtd.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <RandomizedBaseAddress>
       </RandomizedBaseAddress>
       <DataExecutionPrevention>false</DataExecutionPrevention>
@@ -275,7 +276,7 @@
       <LinkLibraryDependencies>true</LinkLibraryDependencies>
     </ProjectReference>
     <Link>
-      <AdditionalDependencies>gnu-efi.lib;libcmtd.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>gnu-efi.lib;libntfs-3g.lib;libcmtd.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <RandomizedBaseAddress />
       <DataExecutionPrevention>false</DataExecutionPrevention>
       <IgnoreAllDefaultLibraries>true</IgnoreAllDefaultLibraries>
@@ -306,7 +307,7 @@
       <DataExecutionPrevention>false</DataExecutionPrevention>
       <IgnoreAllDefaultLibraries>true</IgnoreAllDefaultLibraries>
       <SubSystem>EFI Boot Service Driver</SubSystem>
-      <AdditionalDependencies>gnu-efi.lib;libcmt.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>gnu-efi.lib;libntfs-3g.lib;libcmt.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(OutDir);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalOptions>/IGNORE:4210 %(AdditionalOptions)</AdditionalOptions>
       <OptimizeReferences>true</OptimizeReferences>
@@ -337,7 +338,7 @@
       <DataExecutionPrevention>false</DataExecutionPrevention>
       <IgnoreAllDefaultLibraries>true</IgnoreAllDefaultLibraries>
       <SubSystem>EFI Boot Service Driver</SubSystem>
-      <AdditionalDependencies>gnu-efi.lib;libcmt.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>gnu-efi.lib;libntfs-3g.lib;libcmt.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(OutDir);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalOptions>/IGNORE:4210 %(AdditionalOptions)</AdditionalOptions>
       <OptimizeReferences>true</OptimizeReferences>
@@ -366,7 +367,7 @@
       <DataExecutionPrevention>false</DataExecutionPrevention>
       <IgnoreAllDefaultLibraries>true</IgnoreAllDefaultLibraries>
       <SubSystem>EFI Boot Service Driver</SubSystem>
-      <AdditionalDependencies>gnu-efi.lib;libcmt.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>gnu-efi.lib;libntfs-3g.lib;libcmt.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(OutDir);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalOptions>/IGNORE:4210 %(AdditionalOptions)</AdditionalOptions>
       <OptimizeReferences>true</OptimizeReferences>
@@ -397,7 +398,7 @@
       <DataExecutionPrevention>false</DataExecutionPrevention>
       <IgnoreAllDefaultLibraries>true</IgnoreAllDefaultLibraries>
       <SubSystem>EFI Boot Service Driver</SubSystem>
-      <AdditionalDependencies>gnu-efi.lib;libcmt.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>gnu-efi.lib;libntfs-3g.lib;libcmt.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(OutDir);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalOptions>/IGNORE:4210 %(AdditionalOptions)</AdditionalOptions>
       <OptimizeReferences>true</OptimizeReferences>

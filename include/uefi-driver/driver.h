@@ -72,3 +72,40 @@
 /* Driver version */
 #define NTFS_DRIVER_VERSION_MAJOR 0
 #define NTFS_DRIVER_VERSION_MINOR 1
+
+#ifndef ARRAYSIZE
+#define ARRAYSIZE(A)            (sizeof(A)/sizeof((A)[0]))
+#endif
+
+/* Logging */
+#define FS_LOGLEVEL_NONE        0
+#define FS_LOGLEVEL_ERROR       1
+#define FS_LOGLEVEL_WARNING     2
+#define FS_LOGLEVEL_INFO        3
+#define FS_LOGLEVEL_DEBUG       4
+#define FS_LOGLEVEL_EXTRA       5
+
+typedef UINTN(EFIAPI* Print_t)        (IN CONST CHAR16* fmt, ...);
+extern Print_t PrintError;
+extern Print_t PrintWarning;
+extern Print_t PrintInfo;
+extern Print_t PrintDebug;
+extern Print_t PrintExtra;
+
+#define FS_ASSERT(a)  if(!(a)) do { Print(L"*** ASSERT FAILED: %a(%d): %a ***\n", __FILE__, __LINE__, #a); while(1); } while(0)
+
+/**
+ * Print an error message along with a human readable EFI status code
+ *
+ * @v Status		EFI status code
+ * @v Format		A non '\n' terminated error message string
+ * @v ...			Any extra parameters
+ */
+#define PrintStatusError(Status, Format, ...) \
+	if (LogLevel >= FS_LOGLEVEL_ERROR) { \
+		Print(Format, ##__VA_ARGS__); PrintStatus(Status); }
+
+extern UINTN LogLevel;
+
+extern VOID SetLogging(VOID);
+extern VOID PrintStatus(EFI_STATUS Status);
