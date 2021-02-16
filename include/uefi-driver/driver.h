@@ -1,6 +1,6 @@
 /* driver.h -ntfs-3g UEFI filesystem driver */
 /*
- *  Copyright © 2021 Pete Batard <pete@akeo.ie>
+ *  Copyright © 2014-2021 Pete Batard <pete@akeo.ie>
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -71,11 +71,17 @@
 
 /* Driver version */
 #define NTFS_DRIVER_VERSION_MAJOR 0
-#define NTFS_DRIVER_VERSION_MINOR 1
+#define NTFS_DRIVER_VERSION_MINOR 2
 
 #ifndef ARRAYSIZE
 #define ARRAYSIZE(A)            (sizeof(A)/sizeof((A)[0]))
 #endif
+
+#define _STRINGIFY(s)           #s
+#define STRINGIFY(s)            _STRINGIFY(s)
+
+#define _WIDEN(s)               L ## s
+#define WIDEN(s)                _WIDEN(s)
 
 /* Logging */
 #define FS_LOGLEVEL_NONE        0

@@ -45,6 +45,67 @@ typedef struct {
 } EFI_MUTEX_PROTOCOL;
 static EFI_MUTEX_PROTOCOL MutexProtocol = { 0 };
 
+static CHAR16* FullDriverName = L"ntfs-3g v"
+		WIDEN(STRINGIFY(NTFS_DRIVER_VERSION_MAJOR)) L"."
+		WIDEN(STRINGIFY(NTFS_DRIVER_VERSION_MINOR));
+
+/* Return the driver name */
+static EFI_STATUS EFIAPI
+FSGetDriverName(EFI_COMPONENT_NAME_PROTOCOL* This,
+	CHAR8* Language, CHAR16** DriverName)
+{
+	*DriverName = FullDriverName;
+	return EFI_SUCCESS;
+}
+
+static EFI_STATUS EFIAPI
+FSGetDriverName2(EFI_COMPONENT_NAME2_PROTOCOL* This,
+	CHAR8* Language, CHAR16** DriverName)
+{
+	*DriverName = FullDriverName;
+	return EFI_SUCCESS;
+}
+
+/* Return the controller name (unsupported for a filesystem) */
+static EFI_STATUS EFIAPI
+FSGetControllerName(EFI_COMPONENT_NAME_PROTOCOL* This,
+	EFI_HANDLE ControllerHandle, EFI_HANDLE ChildHandle,
+	CHAR8* Language, CHAR16** ControllerName)
+{
+	return EFI_UNSUPPORTED;
+}
+
+static EFI_STATUS EFIAPI
+FSGetControllerName2(EFI_COMPONENT_NAME2_PROTOCOL* This,
+	EFI_HANDLE ControllerHandle, EFI_HANDLE ChildHandle,
+	CHAR8* Language, CHAR16** ControllerName)
+{
+	return EFI_UNSUPPORTED;
+}
+
+/*
+ * The platform determines whether it will support the older Component
+ * Name Protocol or the current Component Name2 Protocol, or both.
+ * Because of this, it is strongly recommended that you implement both
+ * protocols in your driver.
+ *
+ * NB: From what I could see, the only difference between Name and Name2
+ * is that Name uses ISO-639-2 ("eng") whereas Name2 uses RFC 4646 ("en")
+ * See: http://www.loc.gov/standards/iso639-2/faq.html#6
+ */
+static EFI_COMPONENT_NAME_PROTOCOL FSComponentName = {
+	.GetDriverName = FSGetDriverName,
+	.GetControllerName = FSGetControllerName,
+	.SupportedLanguages = (CHAR8*)"eng"
+};
+
+static EFI_COMPONENT_NAME2_PROTOCOL FSComponentName2 = {
+	.GetDriverName = FSGetDriverName2,
+	.GetControllerName = FSGetControllerName2,
+	.SupportedLanguages = (CHAR8*)"en"
+};
+
+
 static EFI_DRIVER_BINDING_PROTOCOL FSDriverBinding = {
 	/* This field is used by the EFI boot service ConnectController() to determine the order
 	 * that driver's Supported() service will be used when a controller needs to be started.
@@ -160,6 +221,8 @@ FSDriverInstall(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable)
 	/* Install driver */
 	Status = BS->InstallMultipleProtocolInterfaces(&FSDriverBinding.DriverBindingHandle,
 		&gEfiDriverBindingProtocolGuid, &FSDriverBinding,
+		&gEfiComponentNameProtocolGuid, &FSComponentName,
+		&gEfiComponentName2ProtocolGuid, &FSComponentName2,
 		NULL);
 	if (EFI_ERROR(Status)) {
 		PrintStatusError(Status, L"Could not bind driver");
