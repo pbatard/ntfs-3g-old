@@ -70,19 +70,19 @@
 #define set_bit(bit, var)	      (var) |= 1 << (bit)
 #define clear_bit(bit, var)	      (var) &= ~(1 << (bit))
 
-#define test_and_set_bit(bit, var)			\
-({							\
-	const BOOL old_state = test_bit(bit, var);	\
-	set_bit(bit, var);				\
-	old_state;					\
-})
+static __inline__ BOOL test_and_set_bit(int bit, u32 var)
+{
+	const BOOL old_state = test_bit(bit, var);
+	set_bit(bit, var);
+	return old_state;
+}
 
-#define test_and_clear_bit(bit, var)			\
-({							\
-	const BOOL old_state = test_bit(bit, var);	\
-	clear_bit(bit, var);				\
-	old_state;					\
-})
+static __inline__ BOOL test_and_clear_bit(int bit, u32 var)
+{
+	const BOOL old_state = test_bit(bit, var);
+	clear_bit(bit, var);
+	return old_state;
+}
 
 #endif /* defined _NTFS_SUPPORT_H */
 
