@@ -111,6 +111,8 @@ FreeFsInstance(EFI_FS* Instance) {
 		return;
 	if (Instance->DevicePathString != NULL)
 		FreePool(Instance->DevicePathString);
+	if (Instance->RootFile != NULL)
+		FreePool(Instance->RootFile);
 	FreePool(Instance);
 }
 
@@ -175,6 +177,16 @@ FSBindingStart(EFI_DRIVER_BINDING_PROTOCOL* This,
 		return Status;
 	}
 
+	/* Allocate the root file structure */
+	Instance->RootFile = AllocateZeroPool(sizeof(EFI_NTFS_FILE));
+	if (Instance->RootFile == NULL) {
+		Status = EFI_OUT_OF_RESOURCES;
+		PrintStatusError(Status, L"Could not allocate root file");
+		goto error;
+	}
+	Instance->FileIoInterface.Revision = EFI_SIMPLE_FILE_SYSTEM_PROTOCOL_REVISION;
+	Instance->FileIoInterface.OpenVolume = FileOpenVolume;
+
 	/* Fill the device path for our instance */
 	DevicePath = DevicePathFromHandle(ControllerHandle);
 	if (DevicePath == NULL) {
@@ -223,7 +235,8 @@ FSBindingStart(EFI_DRIVER_BINDING_PROTOCOL* This,
 		goto error;
 	}
 
-	/* TODO: Go through target file system init */
+	/* Perform target file system init */
+	Status = FSInstall(Instance, ControllerHandle);
 
 error:
 	if (EFI_ERROR(Status)) {
@@ -265,7 +278,8 @@ FSBindingStop(EFI_DRIVER_BINDING_PROTOCOL* This,
 
 	Instance = _CR(FileIoInterface, EFI_FS, FileIoInterface);
 
-	/* TODO: Go through target file system cleanup */
+	/* Perform target file system cleanup */
+	FSUninstall(Instance, ControllerHandle);
 
 	BS->CloseProtocol(ControllerHandle, &gEfiDiskIo2ProtocolGuid,
 		This->DriverBindingHandle, ControllerHandle);

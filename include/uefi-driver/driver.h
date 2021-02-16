@@ -115,6 +115,21 @@ extern Print_t PrintExtra;
 	if (LogLevel >= FS_LOGLEVEL_ERROR) { \
 		Print(Format, ##__VA_ARGS__); PrintStatus(Status); }
 
+ /* Forward declaration */
+struct _EFI_FS;
+
+/* A file instance */
+typedef struct _EFI_NTFS_FILE {
+	EFI_FILE                        EfiFile;
+	BOOLEAN                         IsDir;
+	INT64                           DirIndex;
+	UINT64                          Offset;
+	CHAR16                          *Path;
+	CHAR16                          *Basename;
+	INTN                            RefCount;
+	struct _EFI_FS                  *FileSystem;
+} EFI_NTFS_FILE;
+
 /* A file system instance */
 typedef struct _EFI_FS {
 	LIST_ENTRY                      *Flink;
@@ -127,6 +142,7 @@ typedef struct _EFI_FS {
 	EFI_DISK_IO2_PROTOCOL           *DiskIo2;
 	EFI_DISK_IO2_TOKEN              DiskIo2Token;
 	CHAR16*                         DevicePathString;
+	EFI_NTFS_FILE                   *RootFile;
 } EFI_FS;
 
 extern UINTN LogLevel;
@@ -136,3 +152,7 @@ extern VOID PrintStatus(EFI_STATUS Status);
 extern INTN CompareDevicePaths(CONST EFI_DEVICE_PATH* dp1, CONST EFI_DEVICE_PATH* dp2);
 extern VOID CopyPathRelative(CHAR8* Dst, CHAR8* Src, INTN Len);
 extern CHAR16* DevicePathToString(CONST EFI_DEVICE_PATH* DevicePath);
+extern EFI_STATUS FSInstall(EFI_FS* This, EFI_HANDLE ControllerHandle);
+extern VOID FSUninstall(EFI_FS* This, EFI_HANDLE ControllerHandle);
+extern EFI_STATUS EFIAPI FileOpenVolume(EFI_SIMPLE_FILE_SYSTEM_PROTOCOL* This,
+	EFI_FILE_HANDLE* Root);
