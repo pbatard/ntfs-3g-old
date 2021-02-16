@@ -40,6 +40,8 @@
 #include <time.h>
 #include <wchar.h>
 
+#include "types.h"
+
 #define HAVE_ERRNO_H 1
 #define HAVE_INTTYPES_H 1
 #define HAVE_INTTYPES_H 1
@@ -191,5 +193,13 @@ struct passwd {
 #ifndef S_ISBLK
 #define S_ISBLK(m)		(((m) & S_IFMT) == S_IFBLK)
 #endif
+
+/*
+ * Declaration of the standard UEFI AsciiVSPrint() and AsciiPrint() calls per:
+ * https://github.com/tianocore/edk2/blob/master/MdePkg/Include/Library/PrintLib.h
+ */
+extern size_t AsciiVSPrint(u8 *StartOfBuffer, size_t BufferSize,
+                           const u8* FormatString, va_list Marker);
+extern size_t AsciiPrint(const u8* Format, ...);
 
 #endif /* defined _NTFS_COMPAT_UEFI_H */
