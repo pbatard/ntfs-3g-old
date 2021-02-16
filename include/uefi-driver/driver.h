@@ -115,6 +115,20 @@ extern Print_t PrintExtra;
 	if (LogLevel >= FS_LOGLEVEL_ERROR) { \
 		Print(Format, ##__VA_ARGS__); PrintStatus(Status); }
 
+/* A file system instance */
+typedef struct _EFI_FS {
+	LIST_ENTRY                      *Flink;
+	LIST_ENTRY                      *Blink;
+	EFI_SIMPLE_FILE_SYSTEM_PROTOCOL FileIoInterface;
+	EFI_BLOCK_IO_PROTOCOL           *BlockIo;
+	EFI_BLOCK_IO2_PROTOCOL          *BlockIo2;
+	EFI_BLOCK_IO2_TOKEN             BlockIo2Token;
+	EFI_DISK_IO_PROTOCOL            *DiskIo;
+	EFI_DISK_IO2_PROTOCOL           *DiskIo2;
+	EFI_DISK_IO2_TOKEN              DiskIo2Token;
+	CHAR16*                         DevicePathString;
+} EFI_FS;
+
 extern UINTN LogLevel;
 
 extern VOID SetLogging(VOID);
