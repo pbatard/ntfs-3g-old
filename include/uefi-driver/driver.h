@@ -77,6 +77,10 @@
 #define ARRAYSIZE(A)            (sizeof(A)/sizeof((A)[0]))
 #endif
 
+#ifndef MIN
+#define MIN(x,y)                ((x)<(y)?(x):(y))
+#endif
+
 #define _STRINGIFY(s)           #s
 #define STRINGIFY(s)            _STRINGIFY(s)
 
@@ -115,3 +119,6 @@ extern UINTN LogLevel;
 
 extern VOID SetLogging(VOID);
 extern VOID PrintStatus(EFI_STATUS Status);
+extern INTN CompareDevicePaths(CONST EFI_DEVICE_PATH* dp1, CONST EFI_DEVICE_PATH* dp2);
+extern VOID CopyPathRelative(CHAR8* Dst, CHAR8* Src, INTN Len);
+extern CHAR16* DevicePathToString(CONST EFI_DEVICE_PATH* DevicePath);

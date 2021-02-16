@@ -43,6 +43,7 @@
   <ItemGroup>
     <ClCompile Include="..\uefi-driver\driver.c" />
     <ClCompile Include="..\uefi-driver\logging.c" />
+    <ClCompile Include="..\uefi-driver\path.c" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{DFA0BA98-D0BA-4176-9A34-B5BA6355B1DE}</ProjectGuid>
