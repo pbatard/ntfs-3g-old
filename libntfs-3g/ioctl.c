@@ -412,6 +412,8 @@ int ntfs_ioctl(ntfs_inode *ni, unsigned long cmd,
 			range->len = trimmed;
 		}
 		break;
+#elif defined(_MSC_VER)
+#pragma message("Warning: Trimming not supported : FITRIM or BLKDISCARD not defined")
 #else
 #warning Trimming not supported : FITRIM or BLKDISCARD not defined
 #endif
