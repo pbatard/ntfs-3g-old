@@ -32,6 +32,29 @@
 #include <Library/UefiRuntimeServicesTableLib.h>
 #endif
 
+#ifdef _MSC_VER
+static int __errno;
+int* _errno(void)
+{
+	return &__errno;
+}
+#endif
+
+int ffs(int i)
+{
+#if __GNUC__ > 3 || (__GNUC__ == 3 && __GNUC_MINOR__ >= 4)
+	return __builtin_ffs(i);
+#elif defined _MSC_VER
+	unsigned long bit = 0;
+	if (_BitScanForward(&bit, i))
+		return bit + 1;
+	else
+		return 0;
+#else
+#warn "ffs() not implemented"
+#endif
+}
+
 void* malloc(size_t size)
 {
 	return AllocatePool(size);
