@@ -94,6 +94,10 @@
 #define inline __inline
 #endif
 
+#if defined(_MSC_VER) & !defined(__inline__)
+#define __inline__ __inline
+#endif
+
 typedef long int       off_t;
 typedef unsigned int   dev_t;
 typedef unsigned long  uid_t;
@@ -199,6 +203,51 @@ struct passwd {
 #ifndef CLOCK_REALTIME
 #define CLOCK_REALTIME	0
 #endif
+
+/*
+ * For a UEFI driver, we can hardcode these.
+ */
+#define getuid()    0
+#define getgid()    0
+#define getpid()    1
+#define getgrgid(x) NULL
+#define getpwuid(x) NULL
+#define major(x)    0
+#define minor(x)    0
+
+/*
+ * The following calls are only referenced when creating a
+ * file system, which we never do in a UEFI driver. Therefore
+ * we can harcode the return value to 0.
+ */
+#define random()    0
+#define srandom(x)  0
+
+/*
+ * Likewise makedev is pointless for us, so we define a simplified version.
+ */
+#define makedev(major, minor) (((major & 0xffff) << 16) | (minor & 0xffff))
+
+/*
+ * open/close/read are referenced, but aren't expected to be called.
+ */
+static __inline__ int open(const char* pathname, int flags)
+{
+	errno = ENOSYS;
+	return -1;
+}
+
+static __inline__ int close(int fd)
+{
+	errno = ENOSYS;
+	return -1;
+}
+
+static __inline__ int read(int fildes, void* buf, size_t nbyte)
+{
+	errno = ENOSYS;
+	return -1;
+}
 
 /*
  * Declaration of the standard UEFI AsciiVSPrint() and AsciiPrint() calls per:
