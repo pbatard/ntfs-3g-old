@@ -32,6 +32,67 @@
 #include <Library/UefiRuntimeServicesTableLib.h>
 #endif
 
+void* malloc(size_t size)
+{
+	return AllocatePool(size);
+}
+
+void* calloc(size_t nmemb, size_t size)
+{
+	return AllocateZeroPool(size * nmemb);
+}
+
+void* realloc(void* p, size_t new_size)
+{
+	size_t* ptr = (size_t*)p;
+
+	if (ptr != NULL) {
+		ptr = &ptr[-1];
+#ifdef __MAKEWITH_GNUEFI
+		ptr = ReallocatePool(ptr, (UINTN)*ptr, (UINTN)(new_size + sizeof(size_t)));
+#else
+		ptr = ReallocatePool((UINTN)*ptr, (UINTN)(new_size + sizeof(size_t)), ptr);
+#endif
+		if (ptr != NULL)
+			*ptr++ = new_size;
+	}
+	return ptr;
+}
+
+/*
+ * gnu-efi provides the following. But the EDK2 doesn't.
+ */
+#ifndef __MAKEWITH_GNUEFI
+void* memcpy(void* dest, const void* src, size_t n)
+{
+	CopyMem(dest, src, n);
+	return dest;
+}
+
+void* memset(void* s, int c, size_t n)
+{
+	SetMem(s, n, (UINT8)c);
+	return s;
+}
+#endif
+
+void* memmove(void* dest, const void* src, size_t n)
+{
+	/* CopyMem() supports the handling of overlapped regions */
+	CopyMem(dest, src, n);
+	return dest;
+}
+
+int memcmp(const void* s1, const void* s2, size_t n)
+{
+	return (int)CompareMem(s1, s2, n);
+}
+
+void free(void* a)
+{
+	FreePool(a);
+}
+
 /*
  * Converts Gregorian date to seconds since 1970-01-01 00:00:00.
  * Assumes input in normal date format, i.e. 1980-12-31 23:59:59
