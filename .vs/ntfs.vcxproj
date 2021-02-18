@@ -174,8 +174,8 @@
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
-      <AdditionalIncludeDirectories>$(SolutionDir)\include\uefi-driver;$(SolutionDir)\gnu-efi\inc;$(SolutionDir)\gnu-efi\inc\x86_64</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>_NO_CRT_STDIO_INLINE;_UNICODE;UNICODE;__MAKEWITH_GNUEFI;HAVE_USE_MS_ABI;GNU_EFI_USE_EXTERNAL_STDARG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(SolutionDir)\include\uefi-driver;$(SolutionDir)\include\ntfs-3g;$(SolutionDir)\gnu-efi\inc</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>UEFI_DRIVER;_NO_CRT_STDIO_INLINE;__MAKEWITH_GNUEFI;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ExceptionHandling>false</ExceptionHandling>
       <CompileAs>CompileAsC</CompileAs>
       <WarningLevel>Level3</WarningLevel>
@@ -203,8 +203,8 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
-      <AdditionalIncludeDirectories>$(SolutionDir)\include\uefi-driver;$(SolutionDir)\gnu-efi\inc;$(SolutionDir)\gnu-efi\inc\ia32</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>_NO_CRT_STDIO_INLINE;_UNICODE;UNICODE;__MAKEWITH_GNUEFI;HAVE_USE_MS_ABI;GNU_EFI_USE_EXTERNAL_STDARG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(SolutionDir)\include\uefi-driver;$(SolutionDir)\include\ntfs-3g;$(SolutionDir)\gnu-efi\inc</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>UEFI_DRIVER;_NO_CRT_STDIO_INLINE;__MAKEWITH_GNUEFI;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ExceptionHandling>false</ExceptionHandling>
       <CompileAs>CompileAsC</CompileAs>
       <WarningLevel>Level3</WarningLevel>
@@ -231,8 +231,8 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM'">
     <ClCompile>
-      <AdditionalIncludeDirectories>$(SolutionDir)\include\uefi-driver;$(SolutionDir)\gnu-efi\inc;$(SolutionDir)\gnu-efi\inc\arm</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>_NO_CRT_STDIO_INLINE;_UNICODE;UNICODE;__MAKEWITH_GNUEFI;HAVE_USE_MS_ABI;GNU_EFI_USE_EXTERNAL_STDARG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(SolutionDir)\include\uefi-driver;$(SolutionDir)\include\ntfs-3g;$(SolutionDir)\gnu-efi\inc</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>UEFI_DRIVER;_NO_CRT_STDIO_INLINE;__MAKEWITH_GNUEFI;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ExceptionHandling>false</ExceptionHandling>
       <CompileAs>CompileAsC</CompileAs>
       <WarningLevel>Level3</WarningLevel>
@@ -260,8 +260,8 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">
     <ClCompile>
-      <AdditionalIncludeDirectories>$(SolutionDir)\include\uefi-driver;$(SolutionDir)\gnu-efi\inc;$(SolutionDir)\gnu-efi\inc\aarch64</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>_NO_CRT_STDIO_INLINE;_UNICODE;UNICODE;__MAKEWITH_GNUEFI;HAVE_USE_MS_ABI;GNU_EFI_USE_EXTERNAL_STDARG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(SolutionDir)\include\uefi-driver;$(SolutionDir)\include\ntfs-3g;$(SolutionDir)\gnu-efi\inc</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>UEFI_DRIVER;_NO_CRT_STDIO_INLINE;__MAKEWITH_GNUEFI;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ExceptionHandling>false</ExceptionHandling>
       <CompileAs>CompileAsC</CompileAs>
       <WarningLevel>Level3</WarningLevel>
@@ -288,8 +288,8 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
-      <AdditionalIncludeDirectories>$(SolutionDir)\include\uefi-driver;$(SolutionDir)\gnu-efi\inc;$(SolutionDir)\gnu-efi\inc\x86_64</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>_NO_CRT_STDIO_INLINE;_UNICODE;UNICODE;__MAKEWITH_GNUEFI;HAVE_USE_MS_ABI;GNU_EFI_USE_EXTERNAL_STDARG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(SolutionDir)\include\uefi-driver;$(SolutionDir)\include\ntfs-3g;$(SolutionDir)\gnu-efi\inc</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>UEFI_DRIVER;_NO_CRT_STDIO_INLINE;__MAKEWITH_GNUEFI;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ExceptionHandling>false</ExceptionHandling>
       <CompileAs>CompileAsC</CompileAs>
       <WarningLevel>Level3</WarningLevel>
@@ -319,8 +319,8 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
-      <AdditionalIncludeDirectories>$(SolutionDir)\include\uefi-driver;$(SolutionDir)\gnu-efi\inc;$(SolutionDir)\gnu-efi\inc\ia32</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>_NO_CRT_STDIO_INLINE;_UNICODE;UNICODE;__MAKEWITH_GNUEFI;HAVE_USE_MS_ABI;GNU_EFI_USE_EXTERNAL_STDARG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(SolutionDir)\include\uefi-driver;$(SolutionDir)\include\ntfs-3g;$(SolutionDir)\gnu-efi\inc</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>UEFI_DRIVER;_NO_CRT_STDIO_INLINE;__MAKEWITH_GNUEFI;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ExceptionHandling>false</ExceptionHandling>
       <CompileAs>CompileAsC</CompileAs>
       <WarningLevel>Level3</WarningLevel>
@@ -348,8 +348,8 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM'">
     <ClCompile>
-      <AdditionalIncludeDirectories>$(SolutionDir)\include\uefi-driver;$(SolutionDir)\gnu-efi\inc;$(SolutionDir)\gnu-efi\inc\arm</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>_NO_CRT_STDIO_INLINE;_UNICODE;UNICODE;__MAKEWITH_GNUEFI;HAVE_USE_MS_ABI;GNU_EFI_USE_EXTERNAL_STDARG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(SolutionDir)\include\uefi-driver;$(SolutionDir)\include\ntfs-3g;$(SolutionDir)\gnu-efi\inc</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>UEFI_DRIVER;_NO_CRT_STDIO_INLINE;__MAKEWITH_GNUEFI;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ExceptionHandling>false</ExceptionHandling>
       <CompileAs>CompileAsC</CompileAs>
       <WarningLevel>Level3</WarningLevel>
@@ -379,8 +379,8 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">
     <ClCompile>
-      <AdditionalIncludeDirectories>$(SolutionDir)\include\uefi-driver;$(SolutionDir)\gnu-efi\inc;$(SolutionDir)\gnu-efi\inc\aarch64</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>_NO_CRT_STDIO_INLINE;_UNICODE;UNICODE;__MAKEWITH_GNUEFI;HAVE_USE_MS_ABI;GNU_EFI_USE_EXTERNAL_STDARG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(SolutionDir)\include\uefi-driver;$(SolutionDir)\include\ntfs-3g;$(SolutionDir)\gnu-efi\inc</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>UEFI_DRIVER;_NO_CRT_STDIO_INLINE;__MAKEWITH_GNUEFI;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ExceptionHandling>false</ExceptionHandling>
       <CompileAs>CompileAsC</CompileAs>
       <WarningLevel>Level3</WarningLevel>

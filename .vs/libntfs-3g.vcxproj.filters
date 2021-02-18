@@ -214,5 +214,8 @@
     <ClCompile Include="..\libntfs-3g\logging.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\libntfs-3g\compat_uefi.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>
