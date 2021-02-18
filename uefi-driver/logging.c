@@ -17,6 +17,7 @@
  */
 
 #include "driver.h"
+#include "bridge.h"
 
 /* Not defined in gnu-efi yet */
 #define SHELL_VARIABLE_GUID { \
@@ -73,8 +74,10 @@ SetLogging(VOID)
 	if (Status == EFI_SUCCESS)
 		LogLevel = Atoi(LogVar);
 
-	for (i=0; i<ARRAYSIZE(PrintTable); i++)
+	for (i = 0; i < ARRAYSIZE(PrintTable); i++)
 		*PrintTable[i] = (i < LogLevel)?(Print_t)Print:(Print_t)PrintNone;
+
+	NtfsSetLogger(LogLevel);
 
 	PrintExtra(L"LogLevel = %d\n", LogLevel);
 }

@@ -19,34 +19,7 @@
  */
 
 #include "driver.h"
-
-EFI_STATUS
-NtfsCreateFile(EFI_NTFS_FILE** File, EFI_FS* FileSystem)
-{
-	EFI_NTFS_FILE* NewFile;
-
-	NewFile = AllocateZeroPool(sizeof(*NewFile));
-	if (NewFile == NULL)
-		return EFI_OUT_OF_RESOURCES;
-
-	/* Initialize the attributes */
-	NewFile->FileSystem = FileSystem;
-	FS_ASSERT(FileSystem->RootFile != NULL);
-	CopyMem(&NewFile->EfiFile, &FileSystem->RootFile->EfiFile, sizeof(EFI_FILE));
-
-	*File = NewFile;
-	return EFI_SUCCESS;
-}
-
-VOID
-NtfsDestroyFile(EFI_NTFS_FILE* File)
-{
-	if (File == NULL)
-		return;
-	if (File->NtfsInode != NULL)
-		FreePool(File->NtfsInode);
-	FreePool(File);
-}
+#include "bridge.h"
 
 /**
  * Open root directory
@@ -80,10 +53,18 @@ FSInstall(EFI_FS *This, EFI_HANDLE ControllerHandle)
 
 	PrintInfo(L"FSInstall: %s\n", This->DevicePathString);
 
+	/* Mount the NTFS volume */
+	Status = NtfsMount(This);
+	if (EFI_ERROR(Status)) {
+		PrintStatusError(Status, L"Could not mount NTFS volume");
+		return Status;
+	}
+
 	/* Initialize the root handle */
 	Status = NtfsCreateFile(&This->RootFile, This);
 	if (EFI_ERROR(Status)) {
 		PrintStatusError(Status, L"Could not create root file");
+		NtfsUnmount(This);
 		return Status;
 	}
 
@@ -104,6 +85,7 @@ FSInstall(EFI_FS *This, EFI_HANDLE ControllerHandle)
 	if (EFI_ERROR(Status)) {
 		PrintStatusError(Status, L"Could not install simple file system protocol");
 		NtfsDestroyFile(This->RootFile);
+		NtfsUnmount(This);
 		return Status;
 	}
 
@@ -114,9 +96,15 @@ FSInstall(EFI_FS *This, EFI_HANDLE ControllerHandle)
 VOID
 FSUninstall(EFI_FS *This, EFI_HANDLE ControllerHandle)
 {
+	EFI_STATUS Status;
+
 	PrintInfo(L"FSUninstall: %s\n", This->DevicePathString);
 
 	BS->UninstallMultipleProtocolInterfaces(ControllerHandle,
 			&gEfiSimpleFileSystemProtocolGuid, &This->FileIoInterface,
 			NULL);
+
+	Status = NtfsUnmount(This);
+	if (EFI_ERROR(Status))
+		PrintStatusError(Status, L"Could not unmount NTFS volume");
 }

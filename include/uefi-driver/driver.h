@@ -128,6 +128,7 @@ typedef struct _EFI_NTFS_FILE {
 	CHAR16                          *Basename;
 	INTN                            RefCount;
 	struct _EFI_FS                  *FileSystem;
+	VOID                            *NtfsInode;
 } EFI_NTFS_FILE;
 
 /* A file system instance */
@@ -143,9 +144,11 @@ typedef struct _EFI_FS {
 	EFI_DISK_IO2_TOKEN              DiskIo2Token;
 	CHAR16*                         DevicePathString;
 	EFI_NTFS_FILE                   *RootFile;
+	VOID                            *NtfsVolume;
 } EFI_FS;
 
 extern UINTN LogLevel;
+extern LIST_ENTRY FsListHead;
 
 extern VOID SetLogging(VOID);
 extern VOID PrintStatus(EFI_STATUS Status);
