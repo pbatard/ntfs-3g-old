@@ -145,6 +145,7 @@ typedef struct _EFI_FS {
 	CHAR16*                         DevicePathString;
 	EFI_NTFS_FILE                   *RootFile;
 	VOID                            *NtfsVolume;
+	INT64                           Offset;
 } EFI_FS;
 
 extern UINTN LogLevel;

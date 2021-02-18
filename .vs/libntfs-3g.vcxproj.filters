@@ -125,6 +125,9 @@
     <ClInclude Include="..\include\ntfs-3g\compat_uefi.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\include\ntfs-3g\device_io.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\libntfs-3g\acls.c">
@@ -215,6 +218,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\libntfs-3g\compat_uefi.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libntfs-3g\uefi_io.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

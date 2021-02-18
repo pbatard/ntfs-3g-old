@@ -47,6 +47,7 @@
     <ClInclude Include="..\include\ntfs-3g\compress.h" />
     <ClInclude Include="..\include\ntfs-3g\debug.h" />
     <ClInclude Include="..\include\ntfs-3g\device.h" />
+    <ClInclude Include="..\include\ntfs-3g\device_io.h" />
     <ClInclude Include="..\include\ntfs-3g\dir.h" />
     <ClInclude Include="..\include\ntfs-3g\ea.h" />
     <ClInclude Include="..\include\ntfs-3g\efs.h" />
@@ -102,6 +103,7 @@
     <ClCompile Include="..\libntfs-3g\reparse.c" />
     <ClCompile Include="..\libntfs-3g\runlist.c" />
     <ClCompile Include="..\libntfs-3g\security.c" />
+    <ClCompile Include="..\libntfs-3g\uefi_io.c" />
     <ClCompile Include="..\libntfs-3g\unistr.c" />
     <ClCompile Include="..\libntfs-3g\volume.c" />
     <ClCompile Include="..\libntfs-3g\xattrs.c" />
@@ -213,7 +215,7 @@
       <AdditionalOptions>/Oi- %(AdditionalOptions)</AdditionalOptions>
       <DisableSpecificWarnings>
       </DisableSpecificWarnings>
-      <AdditionalIncludeDirectories>$(SolutionDir)\include\ntfs-3g;$(SolutionDir)\gnu-efi\inc;</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)\include\ntfs-3g;$(SolutionDir)\include\uefi-driver;$(SolutionDir)\gnu-efi\inc;</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -236,7 +238,7 @@
       <AdditionalOptions>/Oi- %(AdditionalOptions)</AdditionalOptions>
       <DisableSpecificWarnings>
       </DisableSpecificWarnings>
-      <AdditionalIncludeDirectories>$(SolutionDir)\include\ntfs-3g;$(SolutionDir)\gnu-efi\inc;</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)\include\ntfs-3g;$(SolutionDir)\include\uefi-driver;$(SolutionDir)\gnu-efi\inc;</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -259,7 +261,7 @@
       <AdditionalOptions>/Oi- %(AdditionalOptions)</AdditionalOptions>
       <DisableSpecificWarnings>
       </DisableSpecificWarnings>
-      <AdditionalIncludeDirectories>$(SolutionDir)\include\ntfs-3g;$(SolutionDir)\gnu-efi\inc;</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)\include\ntfs-3g;$(SolutionDir)\include\uefi-driver;$(SolutionDir)\gnu-efi\inc;</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -282,7 +284,7 @@
       <AdditionalOptions>/Oi- %(AdditionalOptions)</AdditionalOptions>
       <DisableSpecificWarnings>
       </DisableSpecificWarnings>
-      <AdditionalIncludeDirectories>$(SolutionDir)\include\ntfs-3g;$(SolutionDir)\gnu-efi\inc;</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)\include\ntfs-3g;$(SolutionDir)\include\uefi-driver;$(SolutionDir)\gnu-efi\inc;</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -305,7 +307,7 @@
       <Optimization>MinSpace</Optimization>
       <DisableSpecificWarnings>
       </DisableSpecificWarnings>
-      <AdditionalIncludeDirectories>$(SolutionDir)\include\ntfs-3g;$(SolutionDir)\gnu-efi\inc;</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)\include\ntfs-3g;$(SolutionDir)\include\uefi-driver;$(SolutionDir)\gnu-efi\inc;</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -331,7 +333,7 @@
       <Optimization>MinSpace</Optimization>
       <DisableSpecificWarnings>
       </DisableSpecificWarnings>
-      <AdditionalIncludeDirectories>$(SolutionDir)\include\ntfs-3g;$(SolutionDir)\gnu-efi\inc;</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)\include\ntfs-3g;$(SolutionDir)\include\uefi-driver;$(SolutionDir)\gnu-efi\inc;</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -357,7 +359,7 @@
       <Optimization>MinSpace</Optimization>
       <DisableSpecificWarnings>
       </DisableSpecificWarnings>
-      <AdditionalIncludeDirectories>$(SolutionDir)\include\ntfs-3g;$(SolutionDir)\gnu-efi\inc;</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)\include\ntfs-3g;$(SolutionDir)\include\uefi-driver;$(SolutionDir)\gnu-efi\inc;</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -383,7 +385,7 @@
       <Optimization>MinSpace</Optimization>
       <DisableSpecificWarnings>
       </DisableSpecificWarnings>
-      <AdditionalIncludeDirectories>$(SolutionDir)\include\ntfs-3g;$(SolutionDir)\gnu-efi\inc;</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)\include\ntfs-3g;$(SolutionDir)\include\uefi-driver;$(SolutionDir)\gnu-efi\inc;</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
