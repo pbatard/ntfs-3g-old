@@ -141,7 +141,7 @@ typedef struct _EFI_NTFS_FILE {
 	EFI_FILE                        EfiFile;
 	/* TODO: Might set flags like hidden, archive, ro and stuff */
 	BOOLEAN                         IsDir;
-	INT64                           DirIndex;
+	INTN                            DirIndex;
 	INT64                           Offset;
 	CHAR16                          *Path;
 	CHAR16                          *Basename;

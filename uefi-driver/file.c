@@ -21,6 +21,13 @@
 #include "driver.h"
 #include "bridge.h"
 
+/* Structure that is used with DirHook */
+typedef struct {
+	INTN           Index;
+	EFI_NTFS_FILE* Parent;
+	EFI_FILE_INFO* Info;
+} DIR_DATA;
+
 static VOID PrintGuid(EFI_GUID* Guid)
 {
 	Print(L"%08x-%04x-%04x-%02x%02x-%02x%02x%02x%02x%02x%02x\n",
@@ -36,28 +43,6 @@ static VOID PrintGuid(EFI_GUID* Guid)
 		Guid->Data4[6],
 		Guid->Data4[7]
 	);
-}
-
-/* Simple hook to populate the directory flag when opening a file */
-static INT32 InfoHook(VOID* Data, CONST CHAR16* Name,
-	CONST INT32 NameLen, CONST INT32 NameType, CONST INT64 Pos,
-	CONST UINT64 MRef, CONST UINT32 DtType)
-{
-	BOOLEAN Match;
-	EFI_NTFS_FILE* File = (EFI_NTFS_FILE*)Data;
-
-	if (NameType == 0x02)				/* FILE_NAME_DOS */
-		return -1;
-
-	/* Never return inodes 0 and 1 */
-	if (GetInodeNumber(MRef) <= 1)
-		return 0;
-
-	/* Look for a specific file (case insensitive) */
-	Match = (StriCmp(Name, File->Basename) == 0);
-	if (Match)
-		File->IsDir = (DtType == 4);	/* NTFS_DT_DIR */
-	return 0;
 }
 
 /**
@@ -246,10 +231,8 @@ static INT32 DirHook(VOID* Data, CONST CHAR16* Name,
 	CONST INT32 NameLen, CONST INT32 NameType, CONST INT64 Pos,
 	CONST UINT64 MRef, CONST UINT32 DtType)
 {
-	EFI_FILE_INFO *Info = (EFI_FILE_INFO *) Data;
-	INT64 *Index = (INT64 *) &Info->FileSize;
-	CHAR8 *filename = (CHAR8 *) (UINTN) Info->PhysicalSize;
-	EFI_TIME Time = { 1970, 01, 01, 00, 00, 00, 0, 0, 0, 0, 0};
+	EFI_STATUS Status;
+	DIR_DATA* HookData = (DIR_DATA*)Data;
 	UINT32 Len;
 
 	/* Never process inodes 0 and 1 */
@@ -261,25 +244,23 @@ static INT32 DirHook(VOID* Data, CONST CHAR16* Name,
 		return 0;
 
 	/* Ignore any entry that doesn't match our index */
-	if ((*Index)-- != 0)
+	if ((HookData->Index)-- != 0)
 		return 0;
 
-	FS_ASSERT(Info->Size > sizeof(EFI_FILE_INFO));
-	Len = MIN((UINT32)NameLen, (UINT32)(Info->Size - sizeof(EFI_FILE_INFO)) / sizeof(CHAR16));
-	StrnCpy(Info->FileName, Name, Len);
-	Info->FileName[Len] = 0;
+	/* Set the Info attributes we obtain from this function's parameters */
+	FS_ASSERT(HookData->Info->Size > sizeof(EFI_FILE_INFO));
+	Len = MIN((UINT32)NameLen, (UINT32)(HookData->Info->Size - sizeof(EFI_FILE_INFO)) / sizeof(CHAR16));
+	StrnCpy(HookData->Info->FileName, Name, Len);
+	HookData->Info->FileName[Len] = 0;
 	/* The Info struct size already accounts for the extra NUL */
-	Info->Size = sizeof(*Info) + (UINT64)Len * sizeof(CHAR16);
-
-	/* TODO: Set the time attributes */
-	CopyMem(&Info->CreateTime, &Time, sizeof(Time));
-	CopyMem(&Info->LastAccessTime, &Time, sizeof(Time));
-	CopyMem(&Info->ModificationTime, &Time, sizeof(Time));
-
-	/* TODO: Remove force to read-only */
-	Info->Attribute = EFI_FILE_READ_ONLY;
+	HookData->Info->Size = sizeof(EFI_FILE_INFO) + (UINT64)Len * sizeof(CHAR16);
 	if (DtType == 4)	/* NTFS_DT_DIR */
-		Info->Attribute |= EFI_FILE_DIRECTORY;
+		HookData->Info->Attribute |= EFI_FILE_DIRECTORY;
+
+	/* Set the Info attributes we obtain from the inode */
+	Status = NtfsSetInfo(HookData->Info, HookData->Parent->FileSystem->NtfsVolume, MRef);
+	if (EFI_ERROR(Status))
+		PrintStatusError(Status, L"Could not set directory entry info");
 
 	return 0;
 }
@@ -295,18 +276,13 @@ static INT32 DirHook(VOID* Data, CONST CHAR16* Name,
 static EFI_STATUS
 FileReadDir(EFI_NTFS_FILE *File, UINTN *Len, VOID *Data)
 {
-	EFI_FILE_INFO *Info = (EFI_FILE_INFO *) Data;
+	DIR_DATA HookData = { File->DirIndex, File, (EFI_FILE_INFO*)Data };
 	EFI_STATUS Status;
-	/* We temporarily repurpose the FileSize as a *signed* entry index */
-	INT64 *Index = (INT64 *) &Info->FileSize;
 	INTN PathLen, MaxPathLen;
-	EFI_NTFS_FILE* TmpFile = NULL;
 
 	/* Populate our Info template */
-	ZeroMem(Data, *Len);
-	Info->Size = *Len;
-	*Index = File->DirIndex;
-
+	ZeroMem(HookData.Info, *Len);
+	HookData.Info->Size = *Len;
 	PathLen = StrLen(File->Path);
 	MaxPathLen = (*Len - sizeof(EFI_FILE_INFO)) / sizeof(CHAR16);
 	if (PathLen > MaxPathLen) {
@@ -315,12 +291,13 @@ FileReadDir(EFI_NTFS_FILE *File, UINTN *Len, VOID *Data)
 		PrintWarning(L"Path is too long for Readdir\n");
 		return EFI_BUFFER_TOO_SMALL;
 	}
+	StrCpy(HookData.Info->FileName, File->Path);
+	if (HookData.Info->FileName[PathLen - 1] != PATH_CHAR)
+		HookData.Info->FileName[PathLen++] = PATH_CHAR;
 
-	StrCpy(Info->FileName, File->Path);
-	if (Info->FileName[PathLen - 1] != PATH_CHAR)
-		Info->FileName[PathLen++] = PATH_CHAR;
-	Status = NtfsReaddir(File, DirHook, Data);
-	if (*Index >= 0) {
+	/* Call ReadDir(), which calls into DirHook() for each entry */
+	Status = NtfsReadDir(File, DirHook, &HookData);
+	if (HookData.Index >= 0) {
 		/* No more entries */
 		*Len = 0;
 		return EFI_SUCCESS;
@@ -331,36 +308,7 @@ FileReadDir(EFI_NTFS_FILE *File, UINTN *Len, VOID *Data)
 		return Status;
 	}
 
-	/* Our Index/FileSize must be reset */
-	Info->FileSize = 0;
-	Info->PhysicalSize = 0;
-
-	/* For regular files, we still need to fill the size */
-	if (!(Info->Attribute & EFI_FILE_DIRECTORY)) {
-		/* Open the file and read its size */
-		Status = NtfsCreateFile(&TmpFile, File->FileSystem);
-		if (EFI_ERROR(Status)) {
-			PrintStatusError(Status, L"Unable to create temporary file");
-			return Status;
-		}
-		TmpFile->Path = AllocatePool((StrLen(File->Path) + StrLen(Info->FileName) + 2) * sizeof(CHAR16));
-		StrCpy(TmpFile->Path, File->Path);
-		StrCat(TmpFile->Path, L"/");
-		StrCat(TmpFile->Path, Info->FileName);
-		CleanPath(TmpFile->Path);
-		Status = NtfsOpen(TmpFile);
-		if (EFI_ERROR(Status)) {
-			PrintStatusError(Status, L"Unable to obtain the size of '%s'", Info->FileName);
-			/* Non fatal error */
-		} else {
-			Info->FileSize = NtfsGetFileSize(TmpFile);
-			Info->PhysicalSize = NtfsGetFileSize(TmpFile);
-			NtfsClose(TmpFile);
-		}
-		NtfsDestroyFile(TmpFile);
-	}
-
-	*Len = (UINTN) Info->Size;
+	*Len = (UINTN) HookData.Info->Size;
 	/* Advance to the next entry */
 	File->DirIndex++;
 

@@ -9,6 +9,9 @@
  *  Copyright © 2007-2021 Jean-Pierre Andre
  *  Copyright © 2009 Erik Larsson
  *
+ *  Parts taken from date_time.c from Oryx Embedded:
+ *  Copyright © 2010-2021 Oryx Embedded SARL.
+ *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
  *  the Free Software Foundation, either version 2 of the License, or
@@ -32,23 +35,103 @@
 #include "driver.h"
 #include "bridge.h"
 
-#define PrintErrno()    PrintError(L"%a failed: %a\n", __FUNCTION__, strerror(errno))
-#define IS_DIR(ni)      (((ntfs_inode*)(ni))->mrec->flags & MFT_RECORD_IS_DIRECTORY)
+#define PrintErrno()            PrintError(L"%a failed: %a\n", __FUNCTION__, strerror(errno))
+#define IS_DIR(ni)              (((ntfs_inode*)(ni))->mrec->flags & MFT_RECORD_IS_DIRECTORY)
+#define NTFS_TO_UNIX_TIME(t)    ((t - (NTFS_TIME_OFFSET)) / 10000000)
+
+
+/* From https://www.oryx-embedded.com/doc/date__time_8c_source.html */
+static VOID ConvertUnixTimeToEfiTime(time_t t, EFI_TIME* Time)
+{
+	UINT32 a, b, c, d, e, f;
+
+	ZeroMem(Time, sizeof(EFI_TIME));
+
+	/* Negative Unix time values are not supported */
+	if (t < 1)
+		return;
+
+	/* Clear nanoseconds */
+	Time->Nanosecond = 0;
+
+	/* Retrieve hours, minutes and seconds */
+	Time->Second = t % 60;
+	t /= 60;
+	Time->Minute = t % 60;
+	t /= 60;
+	Time->Hour = t % 24;
+	t /= 24;
+
+	/* Convert Unix time to date */
+	a = (UINT32)((4 * t + 102032) / 146097 + 15);
+	b = (UINT32)(t + 2442113 + a - (a / 4));
+	c = (20 * b - 2442) / 7305;
+	d = b - 365 * c - (c / 4);
+	e = d * 1000 / 30601;
+	f = d - e * 30 - e * 601 / 1000;
+
+	/* January and February are counted as months 13 and 14 of the previous year */
+	if (e <= 13) {
+		c -= 4716;
+		e -= 1;
+	} else {
+		c -= 4715;
+		e -= 13;
+	}
+
+	/* Retrieve year, month and day */
+	Time->Year = c;
+	Time->Month = e;
+	Time->Day = f;
+}
 
 /* Compute an EFI_TIME representation of an ntfs_time field */
 VOID
 NtfsGetEfiTime(EFI_NTFS_FILE* File, EFI_TIME* Time, INTN Type)
 {
-	/* TODO: Actually populate the time */
-	ZeroMem(Time, sizeof(EFI_TIME));
+	ntfs_inode* ni = (ntfs_inode*)File->NtfsInode;
+	ntfs_time time = NTFS_TIME_OFFSET;
+
+	FS_ASSERT(ni != NULL);
+
+	if (ni != NULL) {
+		switch (Type) {
+		case TIME_CREATED:
+			time = ni->creation_time;
+			break;
+		case TIME_ACCESSED:
+			time = ni->last_access_time;
+			break;
+		case TIME_MODIFIED:
+			time = ni->last_data_change_time;
+			break;
+		default:
+			FS_ASSERT(TRUE);
+			break;
+		}
+	}
+
+	ConvertUnixTimeToEfiTime(NTFS_TO_UNIX_TIME(time), Time);
 }
 
 VOID
 NtfsSetLogger(UINTN LogLevel)
 {
-	ntfs_log_set_handler(ntfs_log_handler_uefi);
-	/* TODO: Only enable relevant log levels */
-	ntfs_log_set_levels(0xFFFF);
+	/* Critical is always enabled for the UEFI driver */
+	UINT32 levels = NTFS_LOG_LEVEL_CRITICAL;
+	
+	if (LogLevel >= FS_LOGLEVEL_ERROR)
+		levels |= NTFS_LOG_LEVEL_ERROR | NTFS_LOG_LEVEL_PERROR;
+	if (LogLevel >= FS_LOGLEVEL_WARNING)
+		levels |= NTFS_LOG_LEVEL_WARNING;
+	if (LogLevel >= FS_LOGLEVEL_INFO)
+		levels |= NTFS_LOG_LEVEL_INFO | NTFS_LOG_LEVEL_VERBOSE | NTFS_LOG_LEVEL_PROGRESS;
+	if (LogLevel >= FS_LOGLEVEL_DEBUG)
+		levels |= NTFS_LOG_LEVEL_DEBUG | NTFS_LOG_LEVEL_QUIET;
+	if (LogLevel >= FS_LOGLEVEL_EXTRA)
+		levels |= NTFS_LOG_LEVEL_TRACE;
+
+	ntfs_log_set_levels(levels);
 }
 
 EFI_STATUS
@@ -68,7 +151,8 @@ NtfsMount(EFI_FS* FileSystem)
 
 	ntfs_log_set_handler(ntfs_log_handler_uefi);
 
-	vol = ntfs_mount(DevName, 0);
+	/* TODO: Sort out unclean mounts */
+	vol = ntfs_mount(DevName, NTFS_MNT_RDONLY);
 	FreePool(DevName);
 	if (vol == NULL) {
 		RemoveEntryList((LIST_ENTRY*)FileSystem);
@@ -217,19 +301,37 @@ NtfsGetFileSize(EFI_NTFS_FILE* File)
 UINT64
 NtfsGetFileOffset(EFI_NTFS_FILE* File)
 {
-	/* TODO: Make sure this is updated after ntfs_pread() */
 	return File->Offset;
 }
 
 VOID
 NtfsSetFileOffset(EFI_NTFS_FILE* File, UINT64 Offset)
 {
-	/* TODO: use this is combination with ntfs_pread() */
 	File->Offset = Offset;
 }
 
 EFI_STATUS
-NtfsReaddir(EFI_NTFS_FILE* File, NTFS_DIRHOOK Hook, VOID* HookData)
+NtfsSetInfo(EFI_FILE_INFO* Info, VOID* NtfsVolume, CONST UINT64 MRef)
+{
+	ntfs_inode* ni = ntfs_inode_open(NtfsVolume, MRef);
+
+	if (ni == NULL)
+		return EFI_NOT_FOUND;
+
+	Info->FileSize = ni->data_size;
+	ConvertUnixTimeToEfiTime(NTFS_TO_UNIX_TIME(ni->creation_time), &Info->CreateTime);
+	ConvertUnixTimeToEfiTime(NTFS_TO_UNIX_TIME(ni->last_access_time), &Info->LastAccessTime);
+	ConvertUnixTimeToEfiTime(NTFS_TO_UNIX_TIME(ni->last_data_change_time), &Info->ModificationTime);
+
+	/* TODO: Set the attributes properly */
+	Info->Attribute = EFI_FILE_READ_ONLY;
+
+	ntfs_inode_close(ni);
+	return EFI_SUCCESS;
+}
+
+EFI_STATUS
+NtfsReadDir(EFI_NTFS_FILE* File, NTFS_DIRHOOK Hook, VOID* HookData)
 {
 	s64 pos = 0;
 
