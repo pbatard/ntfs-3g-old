@@ -25,6 +25,8 @@ QEMU_PATH  = "C:\Program Files\qemu\"
 ' You can add something like "-S -gdb tcp:127.0.0.1:1234" if you plan to use gdb to debug
 ' You can also use '-serial file:serial.log' instead of '-serial vc' to send output to a file
 QEMU_OPTS  = "-nodefaults -vga std -serial vc"
+' Set to True if you don't want to execute the bootloader
+LIST_ONLY  = True
 ' Set to True if you need to download a file that might be cached locally
 NO_CACHE   = False
 ' Set to True if you want to use drivers from the EDK2 repo instead of the VS ones
@@ -41,14 +43,12 @@ TARGET     = WScript.Arguments(3)
 If (TARGET = "x86") Then
   UEFI_EXT  = "ia32"
   QEMU_ARCH = "i386"
-  PRE_CMD   = "dir "
   FW_BASE   = "OVMF"
   EDK_ARCH  = "IA32"
 ElseIf (TARGET = "x64") Then
   UEFI_EXT  = "x64"
   QEMU_ARCH = "x86_64"
   FW_BASE   = "OVMF"
-  PRE_CMD   = ""
   EDK_ARCH  = "X64"
 ElseIf (TARGET = "ARM") Then
   UEFI_EXT  = "arm"
@@ -56,14 +56,12 @@ ElseIf (TARGET = "ARM") Then
   ' You can also add '-device VGA' to the options below, to get graphics output.
   ' But if you do, be mindful that the keyboard input may not work... :(
   QEMU_OPTS = "-M virt -cpu cortex-a15 " & QEMU_OPTS
-  PRE_CMD   = "dir "
   FW_BASE   = "QEMU_EFI"
   EDK_ARCH  = "ARM"
 ElseIf (TARGET = "ARM64") Then
   UEFI_EXT  = "aa64"
   QEMU_ARCH = "aarch64"
   QEMU_OPTS = "-M virt -cpu cortex-a57 " & QEMU_OPTS
-  PRE_CMD   = "dir "
   FW_BASE   = "QEMU_EFI"
   EDK_ARCH  = "AARCH64"
 Else
@@ -82,37 +80,20 @@ LOG_LEVEL  = 0
 If (CONF = "Debug") Then
   LOG_LEVEL = 4
 End If
-IMG_EXT    = ".img"
-If ((FS = "iso9660") Or (FS = "udf")) Then
-  IMG_EXT  = ".iso"
-ElseIf ((FS = "ntfs") Or (FS = "exfat")) Then
-  IMG_EXT  = ".vhd"
-End If
+IMG_EXT    = ".vhd"
 IMG        = FS & IMG_EXT
 IMG_ZIP    = FS & ".zip"
 IMG_URL    = "https://efi.akeo.ie/test/" & IMG_ZIP
 DRV        = FS & "_" & UEFI_EXT & ".efi"
 MNT        = "fs1:"
-If (FS = "zfs") Then
-  ' No idea why we get an '@' directory on ZFS, but it's "working" if we proceed from there
-  MNT      =  MNT & "\@"
+PRE_CMD    = ""
+If (LIST_ONLY) Then
+  PRE_CMD  = "dir "
 End If
-
 
 ' Globals
 Set fso = CreateObject("Scripting.FileSystemObject")
 Set shell = CreateObject("WScript.Shell")
-
-' Download a file from FTP
-Sub DownloadFtp(Server, Path)
-  Set file = fso.CreateTextFile("ftp.txt", True)
-  Call file.Write("open " & Server & vbCrLf &_
-    "anonymous" & vbCrLf & "user" & vbCrLf & "bin" & vbCrLf &_
-    "get " & Path & vbCrLf & "bye" & vbCrLf)
-  Call file.Close()
-  Call shell.Run("%comspec% /c ftp -s:ftp.txt > NUL", 0, True)
-  Call fso.DeleteFile("ftp.txt")
-End Sub
 
 ' Download a file from HTTP
 Sub DownloadHttp(Url, File)
@@ -155,7 +136,6 @@ Sub Unzip(Archive, File)
     End If
   Next
 End Sub
-
 
 ' Check that QEMU is available
 If Not fso.FileExists(QEMU_PATH & QEMU_EXE) Then
@@ -200,7 +180,7 @@ End If
 ' Note: Linaro's QEMU-EFI.fd firmware is very sensitive about '/' vs '\'
 Call shell.Run("%COMSPEC% /c mkdir ""image\efi\boot""", 0, True)
 If USE_EDK2 Then
-  Call fso.CopyFile(EDK2_BASE & "\Build\EfiFs\RELEASE_VS2019\" & EDK_ARCH & "\" & FS & ".efi", "image\" & DRV, True)
+  Call fso.CopyFile(EDK2_BASE & "\Build\NtfsDxe\RELEASE_VS2019\" & EDK_ARCH & "\" & FS & ".efi", "image\" & DRV, True)
 Else
   Call fso.CopyFile(BIN, "image\" & DRV, True)
 End If
@@ -209,6 +189,6 @@ Set file = fso.CreateTextFile("image\efi\boot\startup.nsh", True)
 Call file.Write("set FS_LOGGING " & LOG_LEVEL & vbCrLf &_
   "load fs0:\" & DRV & vbCrLf &_
   "map -r" & vbCrLf &_
-  PRE_CMD & MNT & "\EFI\Boot\bootx64.efi" & vbCrLf)
+  PRE_CMD & MNT & "\EFI\Boot\boot" & UEFI_EXT & ".efi" & vbCrLf)
 Call file.Close()
 Call shell.Run("""" & QEMU_PATH & QEMU_EXE & """ " & QEMU_OPTS & " -L . -bios " & FW_FILE & " -hda fat:rw:image -hdb " & IMG, 1, True)
