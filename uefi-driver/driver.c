@@ -45,9 +45,7 @@ typedef struct {
 } EFI_MUTEX_PROTOCOL;
 static EFI_MUTEX_PROTOCOL MutexProtocol = { 0 };
 
-static CHAR16* FullDriverName = L"ntfs-3g v"
-		WIDEN(STRINGIFY(NTFS_DRIVER_VERSION_MAJOR)) L"."
-		WIDEN(STRINGIFY(NTFS_DRIVER_VERSION_MINOR));
+static CHAR16* FullDriverName = L"NTFS Driver (" WIDEN(PACKAGE_STRING) L")";
 
 /* Return the driver name */
 static EFI_STATUS EFIAPI

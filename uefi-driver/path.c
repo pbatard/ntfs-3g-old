@@ -18,10 +18,6 @@
 
 #include "driver.h"
 
-#ifndef PATH_CHAR
-#define PATH_CHAR '/'
-#endif
-
 /*
  * Poor man's Device Path to string conversion, where we
  * simply convert the path buffer to hexascii.
@@ -126,60 +122,78 @@ CompareDevicePaths(CONST EFI_DEVICE_PATH* dp1, CONST EFI_DEVICE_PATH* dp2)
 	return 0;
 }
 
+/* "The value 0xFFFF is guaranteed not to be a Unicode character at all" */
+#define BLANK_CHAR 0xFFFF
+
 /*
- * Copy Src into Dst while converting the path to a relative one inside
- * the current directory. Dst must hold at least Len bytes.
- * Based on path sanitation code by Ludwig Nussel <ludwig.nussel@suse.de>
+ * Clean an existing path from '.', '..' and/or double path separators.
+ * This will for instance tranform 'a//b/c/./..///d/./e/..' into 'a/b/d'.
+ * Note that trailing path separtors are perserved, if any.
  */
-VOID CopyPathRelative(CHAR8 *Dst, CHAR8 *Src, INTN Len)
+VOID CleanPath(CHAR16* Path)
 {
-	CHAR8* o = Dst;
-	CHAR8* p = Src;
+	UINTN i, j, SepCount = 1;
+	CHAR16* p, ** SepPos;
 
-	*o = '\0';
+	if (!Path || !*Path)
+		return;
 
-	while (*p && *p == PATH_CHAR)
-		++p;
-	for ( ; Len && *p; ) {
-		Src = p;
-		while (*p && *p != PATH_CHAR)
-			p++;
-		if (!*p)
-			p = Src + strlena(Src);
+	/* Count the number of path separators */
+	for (p = Path; *p; p++)
+		if (*p == PATH_CHAR)
+			SepCount++;
 
-		/* . => skip */
-		if (p - Src == 1 && *Src == '.' )
-			if (*p)
-				Src = ++p;
-		/* .. => pop one */
-		else if (p - Src == 2 && *Src == '.' && Src[1] == '.') {
-			if (o != Dst) {
-				UINTN i;
-				*o = '\0';
-				for (i = strlena(Dst) - 1; i > 0 && Dst[i] != PATH_CHAR; i--);
-				Len += o - &Dst[i];
-				o = &Dst[i];
-				if(*p)
-					++p;
-			} else /* nothing to pop */
-				if(*p)
-					++p;
-		} else {
-			INTN copy;
-			if (o != Dst) {
-				--Len;
-				*o++ = PATH_CHAR;
-			}
-			copy = MIN(p - Src, Len);
-			CopyMem(o, Src, copy);
-			Len -= copy;
-			Src += copy;
-			o += copy;
-			if (*p)
-				++p;
+	/* Allocate an array of pointers large enough */
+	SepPos = AllocatePool(SepCount * sizeof(CHAR16*));
+	if (SepPos == NULL)
+		return;
+
+	/* Fill our array with pointers to the path separators */
+	for (i = 1, p = Path; *p; p++)
+		if (*p == PATH_CHAR)
+			SepPos[i++] = p;
+
+	/*
+	 * To simplify processing, set Path[-1] and
+	 * Path[StrLen(Path)] as path separators.
+	 */
+	SepPos[0] = &Path[-1];
+	SepPos[SepCount++] = p;
+
+	/* Now eliminate every single '.' */
+	for (i = 1; i < SepCount; i++) {
+		/*
+		 * Be weary that, per C89 and subsequent C standards:
+		 * "When two pointers to members of the same array object are
+		 *  subtracted, the difference is divided by the size of a member."
+		 * This means that we don't need to correct for sizeof(CHAR16) below.
+		 */
+		if (SepPos[i] - SepPos[i - 1] == 2 && SepPos[i - 1][1] == L'.') {
+			/* Remove the whole section including the leading path sep */
+			SepPos[i - 1][1] = BLANK_CHAR;
+			if (i > 1)
+				SepPos[i - 1][0] = BLANK_CHAR;
 		}
-		while (*p && *p == PATH_CHAR)
-			++p;
 	}
-	o[Len ? 0 : -1] = '\0';
+
+	/* And remove sections preceding '..' */
+	for (i = 1; i < SepCount; i++) {
+		if (SepPos[i] - SepPos[i - 1] == 3 && SepPos[i - 1][1] == L'.' && SepPos[i - 1][2] == L'.') {
+			j = i >= 2 ? i - 2 : 0;
+			/*
+			 * Look for a previous section start, taking care to
+			 * step over the ones that have already been eliminated
+			 */
+			while (j > 0 && *SepPos[j] == BLANK_CHAR)
+				j--;
+			for (p = (j > 0 ? SepPos[j] : Path); p < SepPos[i]; p++)
+				*p = BLANK_CHAR;
+		}
+	}
+
+	/* Finally, rewrite the path eliminating BLANK_CHAR and double PATH_CHAR */
+	for (i = 0, p = Path; *p; p++)
+		if (*p != BLANK_CHAR && (*p != PATH_CHAR || i == 0 || Path[i - 1] != PATH_CHAR))
+			Path[i++] = *p;
+	Path[i] = 0;
 }

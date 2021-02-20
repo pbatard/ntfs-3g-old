@@ -69,9 +69,17 @@
 #endif
 #endif
 
-/* Driver version */
-#define NTFS_DRIVER_VERSION_MAJOR 0
-#define NTFS_DRIVER_VERSION_MINOR 2
+/* Sort out the platform specifics */
+#if defined(_M_ARM64) || defined(__aarch64__) || defined (_M_X64) || defined(__x86_64__)
+#define PERCENT_P               L"%llx"
+#else
+#define PERCENT_P               L"%x"
+#endif
+
+/* Define to the full name and version of this package. */
+#ifndef PACKAGE_STRING
+#define PACKAGE_STRING          "ntfs-3g 2021.02.20"
+#endif
 
 #ifndef ARRAYSIZE
 #define ARRAYSIZE(A)            (sizeof(A)/sizeof((A)[0]))
@@ -81,11 +89,21 @@
 #define MIN(x,y)                ((x)<(y)?(x):(y))
 #endif
 
-#define _STRINGIFY(s)           #s
-#define STRINGIFY(s)            _STRINGIFY(s)
+#ifndef PATH_MAX
+#define PATH_MAX                4096
+#endif
+
+#ifndef PATH_CHAR
+#define PATH_CHAR               L'/'
+#endif
 
 #define _WIDEN(s)               L ## s
 #define WIDEN(s)                _WIDEN(s)
+
+#define MINIMUM_INFO_LENGTH     (sizeof(EFI_FILE_INFO) + PATH_MAX * sizeof(CHAR16))
+#define MINIMUM_FS_INFO_LENGTH  (sizeof(EFI_FILE_SYSTEM_INFO) + PATH_MAX * sizeof(CHAR16))
+#define IS_ROOT(File)           (File == File->FileSystem->RootFile)
+#define IS_PATH_DELIMITER(x)    (x == PATH_CHAR || x == L'\\')
 
 /* Logging */
 #define FS_LOGLEVEL_NONE        0
@@ -115,15 +133,16 @@ extern Print_t PrintExtra;
 	if (LogLevel >= FS_LOGLEVEL_ERROR) { \
 		Print(Format, ##__VA_ARGS__); PrintStatus(Status); }
 
- /* Forward declaration */
+/* Forward declaration */
 struct _EFI_FS;
 
 /* A file instance */
 typedef struct _EFI_NTFS_FILE {
 	EFI_FILE                        EfiFile;
+	/* TODO: Might set flags like hidden, archive, ro and stuff */
 	BOOLEAN                         IsDir;
 	INT64                           DirIndex;
-	UINT64                          Offset;
+	INT64                           Offset;
 	CHAR16                          *Path;
 	CHAR16                          *Basename;
 	INTN                            RefCount;
@@ -142,9 +161,10 @@ typedef struct _EFI_FS {
 	EFI_DISK_IO_PROTOCOL            *DiskIo;
 	EFI_DISK_IO2_PROTOCOL           *DiskIo2;
 	EFI_DISK_IO2_TOKEN              DiskIo2Token;
-	CHAR16*                         DevicePathString;
+	CHAR16                          *DevicePathString;
 	EFI_NTFS_FILE                   *RootFile;
 	VOID                            *NtfsVolume;
+	CHAR16                          *NtfsVolumeLabel;
 	INT64                           Offset;
 } EFI_FS;
 
@@ -154,7 +174,7 @@ extern LIST_ENTRY FsListHead;
 extern VOID SetLogging(VOID);
 extern VOID PrintStatus(EFI_STATUS Status);
 extern INTN CompareDevicePaths(CONST EFI_DEVICE_PATH* dp1, CONST EFI_DEVICE_PATH* dp2);
-extern VOID CopyPathRelative(CHAR8* Dst, CHAR8* Src, INTN Len);
+extern VOID CleanPath(CHAR16* Path);
 extern CHAR16* DevicePathToString(CONST EFI_DEVICE_PATH* DevicePath);
 extern EFI_STATUS FSInstall(EFI_FS* This, EFI_HANDLE ControllerHandle);
 extern VOID FSUninstall(EFI_FS* This, EFI_HANDLE ControllerHandle);
