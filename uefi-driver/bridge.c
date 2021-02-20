@@ -138,7 +138,12 @@ EFI_STATUS
 NtfsMount(EFI_FS* FileSystem)
 {
 	ntfs_volume* vol = NULL;
+	ntfs_mount_flags flags = NTFS_MNT_EXCLUSIVE | NTFS_MNT_IGNORE_HIBERFILE | NTFS_MNT_MAY_RDONLY;
 	CHAR8* DevName = NULL;
+
+#ifdef FORCE_READONLY
+	flags |= NTFS_MNT_RDONLY;
+#endif
 
 	/* ntfs_ucstombs() can be used to convert to UTF-8 */
 	ntfs_ucstombs(FileSystem->DevicePathString,
@@ -151,8 +156,7 @@ NtfsMount(EFI_FS* FileSystem)
 
 	ntfs_log_set_handler(ntfs_log_handler_uefi);
 
-	/* TODO: Sort out unclean mounts */
-	vol = ntfs_mount(DevName, NTFS_MNT_RDONLY);
+	vol = ntfs_mount(DevName, flags);
 	FreePool(DevName);
 	if (vol == NULL) {
 		RemoveEntryList((LIST_ENTRY*)FileSystem);
@@ -174,6 +178,14 @@ NtfsUnmount(EFI_FS* FileSystem)
 	RemoveEntryList((LIST_ENTRY*)FileSystem);
 
 	return EFI_SUCCESS;
+}
+
+UINT64
+NtfsGetVolumeFreeSpace(VOID* NtfsVolume)
+{
+	ntfs_volume* vol = (ntfs_volume*)NtfsVolume;
+
+	return vol->free_clusters * vol->cluster_size;
 }
 
 EFI_STATUS
@@ -323,8 +335,19 @@ NtfsSetInfo(EFI_FILE_INFO* Info, VOID* NtfsVolume, CONST UINT64 MRef)
 	ConvertUnixTimeToEfiTime(NTFS_TO_UNIX_TIME(ni->last_access_time), &Info->LastAccessTime);
 	ConvertUnixTimeToEfiTime(NTFS_TO_UNIX_TIME(ni->last_data_change_time), &Info->ModificationTime);
 
-	/* TODO: Set the attributes properly */
-	Info->Attribute = EFI_FILE_READ_ONLY;
+	Info->Attribute = 0;
+	if (ni->flags & FILE_ATTR_READONLY)
+		Info->Attribute |= EFI_FILE_READ_ONLY;
+	if (ni->flags & FILE_ATTR_HIDDEN)
+		Info->Attribute |= EFI_FILE_HIDDEN;
+	if (ni->flags & FILE_ATTR_SYSTEM)
+		Info->Attribute |= EFI_FILE_SYSTEM;
+	if (ni->flags & FILE_ATTR_ARCHIVE)
+		Info->Attribute |= EFI_FILE_ARCHIVE;
+
+#ifdef FORCE_READONLY
+	Info->Attribute |= EFI_FILE_READ_ONLY;
+#endif
 
 	ntfs_inode_close(ni);
 	return EFI_SUCCESS;

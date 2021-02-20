@@ -81,6 +81,9 @@
 #define PACKAGE_STRING          "ntfs-3g 2021.02.20"
 #endif
 
+/* Define to force all NTFS volumes to be opened read-only */
+#define FORCE_READONLY
+
 #ifndef ARRAYSIZE
 #define ARRAYSIZE(A)            (sizeof(A)/sizeof((A)[0]))
 #endif

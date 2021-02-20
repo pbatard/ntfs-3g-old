@@ -68,11 +68,12 @@ FileOpen(EFI_FILE_HANDLE This, EFI_FILE_HANDLE *New,
 	PrintInfo(L"Open(" PERCENT_P L"%s, \"%s\")\n", (UINTN) This,
 			IS_ROOT(File)?L" <ROOT>":L"", Name);
 
-	/* TODO: Fail for now unless opening read-only */
+#ifdef FORCE_READONLY
 	if (Mode != EFI_FILE_MODE_READ) {
 		PrintWarning(L"File '%s' can only be opened in read-only mode\n", Name);
 		return EFI_WRITE_PROTECTED;
 	}
+#endif
 
 	/* Additional failures */
 	if ((StrCmp(Name, L"..") == 0) && IS_ROOT(File)) {
@@ -358,8 +359,13 @@ FileWrite(EFI_FILE_HANDLE This, UINTN *Len, VOID *Data)
 {
 	EFI_NTFS_FILE *File = _CR(This, EFI_NTFS_FILE, EfiFile);
 
+#ifdef FORCE_READONLY
 	PrintError(L"Cannot write to '%s'\n", File->Path);
 	return EFI_WRITE_PROTECTED;
+#else
+	/* TODO: Write support */
+	return EFI_UNSUPPORTED;
+#endif
 }
 
 /* Ex version */
@@ -393,7 +399,6 @@ FileSetPosition(EFI_FILE_HANDLE This, UINT64 Position)
 		return EFI_SUCCESS;
 	}
 
-	/* TODO: Remove this check when we add write support */
 	FileSize = NtfsGetFileSize(File);
 	if (Position > FileSize) {
 		PrintError(L"'%s': Cannot seek to #%llx of %llx\n",
@@ -512,8 +517,7 @@ FileGetInfo(EFI_FILE_HANDLE This, EFI_GUID *Type, UINTN *Len, VOID *Data)
 				FSInfo->BlockSize;
 		}
 
-		/* TODO: Fill this from NTFS volume info */
-		FSInfo->FreeSpace = 0;
+		FSInfo->FreeSpace = NtfsGetVolumeFreeSpace(File->FileSystem->NtfsVolume);
 
 		if (File->FileSystem->NtfsVolumeLabel == NULL) {
 			FSInfo->VolumeLabel[0] = 0;
@@ -560,11 +564,15 @@ FileSetInfo(EFI_FILE_HANDLE This, EFI_GUID *Type, UINTN Len, VOID *Data)
 {
 	EFI_NTFS_FILE *File = _CR(This, EFI_NTFS_FILE, EfiFile);
 
+#ifdef FORCE_READONLY
 	Print(L"Cannot set information of type ");
 	PrintGuid(Type);
 	Print(L" for file '%s'\n", File->Path);
-
 	return EFI_WRITE_PROTECTED;
+#else
+	/* TODO: Write support */
+	return EFI_UNSUPPORTED;
+#endif
 }
 
 /**
@@ -582,8 +590,11 @@ FileFlush(EFI_FILE_HANDLE This)
 	EFI_NTFS_FILE *File = _CR(This, EFI_NTFS_FILE, EfiFile);
 
 	PrintInfo(L"Flush(" PERCENT_P L"|'%s')\n", (UINTN) This, File->Path);
-	/* TODO: Call ntfs_inode_sync() */
+#ifdef FORCE_READONLY
 	return EFI_SUCCESS;
+#endif
+	/* TODO: Call ntfs_inode_sync() */
+	return EFI_UNSUPPORTED;
 }
 
 /* Ex version */
