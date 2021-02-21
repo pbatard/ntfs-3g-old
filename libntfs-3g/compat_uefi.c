@@ -23,18 +23,40 @@
 #include "compat.h"
 #include "logging.h"
 
-#if defined(__MAKEWITH_GNUEFI)
+#ifdef __MAKEWITH_GNUEFI
 #include <efi.h>
 #include <efilib.h>
-#else
+
+#else /* __MAKEWITH_GNUEFI */
+
 #include <Base.h>
 #include <Uefi.h>
+#include <Library/BaseLib.h>
+#include <Library/UefiLib.h>
+#include <Library/PrintLib.h>
+#include <Library/BaseMemoryLib.h>
+#include <Library/MemoryAllocationLib.h>
+#include <Library/UefiBootServicesTableLib.h>
 #include <Library/UefiRuntimeServicesTableLib.h>
+
+/* This is required to avoid LNK2043 errors with EDK2/MSVC/IA32 */
+#if defined(_MSC_VER) && defined(_M_IX86)
+#pragma comment(linker, "/INCLUDE:_MultS64x64")
+#pragma comment(linker, "/INCLUDE:_DivU64x64Remainder")
+#pragma comment(linker, "/INCLUDE:_DivS64x64Remainder")
 #endif
 
-#ifdef _MSC_VER
+#endif /* __MAKEWITH_GNUEFI */
+
 static int __errno;
+
+#ifdef _MSC_VER
 int* _errno(void)
+{
+	return &__errno;
+}
+#else
+int* __errno_location(void)
 {
 	return &__errno;
 }
@@ -83,8 +105,10 @@ void* realloc(void* p, size_t new_size)
 }
 
 /*
- * gnu-efi provides the following. But the EDK2 doesn't.
+ * Depending on the compiler, the arch, and the toolchain, these
+ * function may or may not need to be provided...
  */
+#ifndef USE_COMPILER_INTRINSICS_LIB
 #ifndef __MAKEWITH_GNUEFI
 void* memcpy(void* dest, const void* src, size_t n)
 {
@@ -97,7 +121,7 @@ void* memset(void* s, int c, size_t n)
 	SetMem(s, n, (UINT8)c);
 	return s;
 }
-#endif
+#endif /* __MAKEWITH_GNUEFI */
 
 void* memmove(void* dest, const void* src, size_t n)
 {
@@ -110,6 +134,7 @@ int memcmp(const void* s1, const void* s2, size_t n)
 {
 	return (int)CompareMem(s1, s2, n);
 }
+#endif /* USE_COMPILER_INTRINSICS_LIB */
 
 void free(void* a)
 {
@@ -169,6 +194,10 @@ char* strcpy(char* dest, const char* src)
 	return memcpy(dest, src, strlen(src) + 1);
 }
 
+#ifndef min
+#define min(x,y)                ((x)<(y)?(x):(y))
+#endif
+
 char* strncpy(char* dest, const char* src, size_t n)
 {
 	return memcpy(dest, src, min(strlen(src) + 1, n));
@@ -190,7 +219,7 @@ char* strdup(const char* s)
 int snprintf(char* str, size_t size, const char* format, ...)
 {
 	size_t i, ret;
-	va_list args;
+	VA_LIST args;
 	char* ascii_format;
 
 	if (!str || !format) {
@@ -211,9 +240,9 @@ int snprintf(char* str, size_t size, const char* format, ...)
 		if ((ascii_format[i] == 's') && (ascii_format[i - 1] == '%'))
 			ascii_format[i] = 'a';
 
-	va_start(args, format);
+	VA_START(args, format);
 	ret = AsciiVSPrint(str, size, ascii_format, args);
-	va_end(args);
+	VA_END(args);
 
 	free(ascii_format);
 	return (int)ret;

@@ -42,6 +42,15 @@
 
 #include "types.h"
 
+#if defined(__MAKEWITH_GNUEFI)
+#include <efi.h>
+#define VA_LIST   va_list
+#define VA_START  va_start
+#define VA_END    va_end
+#else
+#include <Base.h>
+#endif
+
 #define HAVE_ERRNO_H 1
 #define HAVE_CLOCK_GETTIME 1
 #define HAVE_INTTYPES_H 1
@@ -82,7 +91,7 @@
 /* system extended attributes mappings */
 /* #undef XATTR_MAPPINGS */
 
- /* Number of bits in a file offset, on hosts where this is settable. */
+/* Number of bits in a file offset, on hosts where this is settable. */
 #define _FILE_OFFSET_BITS 64
 
 /* Define to `__inline__' or `__inline' if that's what the C compiler
@@ -91,17 +100,17 @@
 #define inline __inline
 #endif
 
-#if defined(_MSC_VER) & !defined(__inline__)
-#define __inline__ __inline
-#endif
-
-typedef long int       off_t;
+#ifdef _MSC_VER
 typedef unsigned int   dev_t;
 typedef unsigned long  uid_t;
 typedef unsigned long  gid_t;
 typedef unsigned long  pid_t;
 typedef unsigned short mode_t;
 typedef uint32_t       clockid_t;
+#ifndef __inline__
+#define __inline__ __inline
+#endif
+#endif /* _MSC_VER */
 
 struct group {
 	char* gr_name;
@@ -218,7 +227,7 @@ struct passwd {
  * we can harcode the return value to 0.
  */
 #define random()    0
-#define srandom(x)  0
+#define srandom(x)
 
 /*
  * Likewise makedev is pointless for us, so we define a simplified version.
@@ -250,9 +259,9 @@ static __inline__ int read(int fildes, void* buf, size_t nbyte)
  * Declaration of the standard UEFI AsciiVSPrint() and AsciiPrint() calls per:
  * https://github.com/tianocore/edk2/blob/master/MdePkg/Include/Library/PrintLib.h
  */
-extern size_t AsciiVSPrint(u8 *StartOfBuffer, size_t BufferSize,
-                           const u8* FormatString, va_list Marker);
-extern size_t AsciiPrint(const u8* Format, ...);
+extern UINTN EFIAPI AsciiVSPrint(CHAR8 *StartOfBuffer, UINTN BufferSize,
+                                 CONST CHAR8 *FormatString, VA_LIST Marker);
+extern UINTN EFIAPI AsciiPrint(const CHAR8 *Format, ...);
 
 /*
  * Function calls that are provided in compat_uefi.c
@@ -293,9 +302,11 @@ char* strchr(const char* s, int c);
 char* strrchr(const char* s, int c);
 int   snprintf(char* str, size_t size, const char* format, ...);
 char* strerror(int errnum);
-/* errno -> _errno() is defined in the MSVC headers */
+/* errno -> _errno() / __errno_location() is defined in errno.h */
 #ifdef _MSC_VER
 int* _errno(void);
+#else
+int* __errno_location(void);
 #endif
 
 #endif /* defined _NTFS_COMPAT_UEFI_H */

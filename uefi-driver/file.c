@@ -229,8 +229,8 @@ FileDelete(EFI_FILE_HANDLE This)
  * Process directory entries
  */
 static INT32 DirHook(VOID* Data, CONST CHAR16* Name,
-	CONST INT32 NameLen, CONST INT32 NameType, CONST INT64 Pos,
-	CONST UINT64 MRef, CONST UINT32 DtType)
+	CONST INT32 NameLen, CONST INT32 NameType, CONST int64_t Pos,
+	CONST uint64_t MRef, CONST UINT32 DtType)
 {
 	EFI_STATUS Status;
 	DIR_DATA* HookData = (DIR_DATA*)Data;
@@ -592,9 +592,10 @@ FileFlush(EFI_FILE_HANDLE This)
 	PrintInfo(L"Flush(" PERCENT_P L"|'%s')\n", (UINTN) This, File->Path);
 #ifdef FORCE_READONLY
 	return EFI_SUCCESS;
-#endif
+#else
 	/* TODO: Call ntfs_inode_sync() */
 	return EFI_UNSUPPORTED;
+#endif
 }
 
 /* Ex version */

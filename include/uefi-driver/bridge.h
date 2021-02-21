@@ -18,6 +18,8 @@
 
 #pragma once
 
+#include <stdint.h>
+
 #include "driver.h"
 
 /* Used with NtfsGetEfiTime */
@@ -30,8 +32,8 @@
 
 /* This typedef mirrors the ntfs_filldir_t one in ntfs-3g's dir.h */
 typedef INT32(*NTFS_DIRHOOK)(VOID* HookData, CONST CHAR16* Name,
-	CONST INT32 NameLen, CONST INT32 NameType, CONST INT64 Pos,
-	CONST UINT64 MRef, CONST UINT32 DtType);
+	CONST INT32 NameLen, CONST INT32 NameType, CONST int64_t Pos,
+	CONST uint64_t MRef, CONST UINT32 DtType);
 
 VOID NtfsGetEfiTime(EFI_NTFS_FILE* File, EFI_TIME* Time, INTN Type);
 VOID NtfsSetLogger(UINTN LogLevel);
