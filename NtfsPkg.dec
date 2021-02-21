@@ -1,0 +1,20 @@
+## @file
+#  NTFS Package
+#
+#  Copyright (c) 2021, Pete Batard <pete@akeo.ie>
+#
+##
+
+[Defines]
+  DEC_SPECIFICATION              = 0x00010005
+  PACKAGE_NAME                   = NtfsPkg
+  PACKAGE_UNI_FILE               = NtfsPkg.uni
+  PACKAGE_GUID                   = 484BBF1A-556E-4451-83EA-E5F51D85C1BE
+  PACKAGE_VERSION                = 1.0
+
+[UserExtensions.TianoCore."ExtraFiles"]
+  NtfsPkgExtra.uni
+
+[Includes]
+  include/ntfs-3g
+  include/uefi-driver
