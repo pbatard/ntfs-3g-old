@@ -3501,7 +3501,7 @@ int ntfs_allowed_access(struct SECURITY_CONTEXT *scx,
 			case S_IWRITE + S_IEXEC + S_ISVTX:
 				if (perm & S_ISVTX) {
 					if ((ntfs_get_owner_mode(scx,ni,&stbuf) >= 0)
-					    && (stbuf.st_uid == scx->uid))
+					    && (stbuf.st_uid == (short)scx->uid))
 						allow = 1;
 					else
 						allow = 2;

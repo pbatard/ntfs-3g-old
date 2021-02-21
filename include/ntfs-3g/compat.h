@@ -64,7 +64,8 @@
 
  /* Disable some MSVC warnings */
 #define _CRT_SECURE_NO_WARNINGS
-#pragma warning(disable: 4047)	
+#pragma warning(disable: 4047)
+#pragma warning(disable: 4146)
 #pragma warning(disable: 4244)
 #pragma warning(disable: 4267)
 #pragma warning(disable: 4309)
