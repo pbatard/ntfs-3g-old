@@ -102,17 +102,17 @@ FileOpen(EFI_FILE_HANDLE This, EFI_FILE_HANDLE *New,
 		Len = 0;
 	} else {
 		Path[0] = PATH_CHAR;
-		StrCpy(&Path[1], File->Path);
-		Len = StrLen(Path);
+		SafeStrCpy(&Path[1], PATH_MAX -1, File->Path);
+		Len = SafeStrLen(Path);
 		/* Add delimiter */
 		Path[Len++] = PATH_CHAR;
 	}
 
 	/* Copy the rest of the path */
-	StrnCpy(&Path[Len], Name, PATH_MAX - Len);
+	SafeStrCpy(&Path[Len], PATH_MAX - Len, Name);
 
 	/* Convert the delimiters if needed */
-	for (i = StrLen(Path) - 1 ; i >= Len; i--) {
+	for (i = SafeStrLen(Path) - 1 ; i >= Len; i--) {
 		if (Path[i] == L'\\')
 			Path[i] = PATH_CHAR;
 	}
@@ -143,7 +143,7 @@ FileOpen(EFI_FILE_HANDLE This, EFI_FILE_HANDLE *New,
 	Path = NULL;
 
 	/* Set basename */
-	for (i = StrLen(NewFile->Path) - 1; i >= 0; i--) {
+	for (i = SafeStrLen(NewFile->Path) - 1; i >= 0; i--) {
 		if (NewFile->Path[i] == PATH_CHAR)
 			break;
 	}
@@ -234,7 +234,7 @@ static INT32 DirHook(VOID* Data, CONST CHAR16* Name,
 {
 	EFI_STATUS Status;
 	DIR_DATA* HookData = (DIR_DATA*)Data;
-	UINT32 Len;
+	UINTN Len, MaxLen;
 
 	/* Never process inodes 0 and 1 */
 	if (GetInodeNumber(MRef) <= 1)
@@ -250,8 +250,9 @@ static INT32 DirHook(VOID* Data, CONST CHAR16* Name,
 
 	/* Set the Info attributes we obtain from this function's parameters */
 	FS_ASSERT(HookData->Info->Size > sizeof(EFI_FILE_INFO));
-	Len = MIN((UINT32)NameLen, (UINT32)(HookData->Info->Size - sizeof(EFI_FILE_INFO)) / sizeof(CHAR16));
-	StrnCpy(HookData->Info->FileName, Name, Len);
+	MaxLen = (UINTN)(HookData->Info->Size - sizeof(EFI_FILE_INFO)) / sizeof(CHAR16);
+	SafeStrCpy(HookData->Info->FileName, MaxLen, Name);
+	Len = MIN((UINTN)NameLen, MaxLen);
 	HookData->Info->FileName[Len] = 0;
 	/* The Info struct size already accounts for the extra NUL */
 	HookData->Info->Size = sizeof(EFI_FILE_INFO) + (UINT64)Len * sizeof(CHAR16);
@@ -283,7 +284,7 @@ FileReadDir(EFI_NTFS_FILE *File, UINTN *Len, VOID *Data)
 	/* Populate our Info template */
 	ZeroMem(HookData.Info, *Len);
 	HookData.Info->Size = *Len;
-	PathLen = StrLen(File->Path);
+	PathLen = SafeStrLen(File->Path);
 	MaxPathLen = (*Len - sizeof(EFI_FILE_INFO)) / sizeof(CHAR16);
 	if (PathLen > MaxPathLen) {
 		/* TODO: Might have to proceed anyway as it doesn't look like all */
@@ -291,7 +292,7 @@ FileReadDir(EFI_NTFS_FILE *File, UINTN *Len, VOID *Data)
 		PrintWarning(L"Path is too long for Readdir\n");
 		return EFI_BUFFER_TOO_SMALL;
 	}
-	StrCpy(HookData.Info->FileName, File->Path);
+	SafeStrCpy(HookData.Info->FileName, MaxPathLen, File->Path);
 	if (HookData.Info->FileName[PathLen - 1] != PATH_CHAR)
 		HookData.Info->FileName[PathLen++] = PATH_CHAR;
 
@@ -450,7 +451,7 @@ FileGetInfo(EFI_FILE_HANDLE This, EFI_GUID *Type, UINTN *Len, VOID *Data)
 	EFI_FILE_SYSTEM_INFO *FSInfo = (EFI_FILE_SYSTEM_INFO *) Data;
 	EFI_FILE_INFO *Info = (EFI_FILE_INFO *) Data;
 	EFI_FILE_SYSTEM_VOLUME_LABEL *VLInfo = (EFI_FILE_SYSTEM_VOLUME_LABEL *)Data;
-	UINTN TmpStrLen;
+	UINTN MaxLen;
 
 	PrintInfo(L"GetInfo(" PERCENT_P L"|'%s', %d) %s\n", (UINTN) This,
 		File->Path, *Len, File->IsDir ? L"<DIR>" : L"");
@@ -480,9 +481,9 @@ FileGetInfo(EFI_FILE_HANDLE This, EFI_GUID *Type, UINTN *Len, VOID *Data)
 		}
 
 		/* The Info struct size accounts for the NUL string terminator */
-		TmpStrLen = (UINTN)(Info->Size - sizeof(EFI_FILE_INFO)) / sizeof(CHAR16);
-		StrnCpy(Info->FileName, File->Basename, TmpStrLen);
-		Info->Size = sizeof(EFI_FILE_INFO) + (UINT64)TmpStrLen * sizeof(CHAR16);
+		MaxLen = (UINTN)(Info->Size - sizeof(EFI_FILE_INFO)) / sizeof(CHAR16);
+		SafeStrCpy(Info->FileName, MaxLen, File->Basename);
+		Info->Size = sizeof(EFI_FILE_INFO) + (UINT64)MaxLen * sizeof(CHAR16);
 		*Len = (INTN)Info->Size;
 		return EFI_SUCCESS;
 
@@ -523,9 +524,9 @@ FileGetInfo(EFI_FILE_HANDLE This, EFI_GUID *Type, UINTN *Len, VOID *Data)
 			*Len = sizeof(EFI_FILE_SYSTEM_INFO);
 		} else {
 			/* The Info struct size accounts for the NUL string terminator */
-			TmpStrLen = (INTN)(FSInfo->Size - sizeof(EFI_FILE_SYSTEM_INFO)) / sizeof(CHAR16);
-			StrnCpy(FSInfo->VolumeLabel, File->FileSystem->NtfsVolumeLabel, TmpStrLen);
-			FSInfo->Size = sizeof(EFI_FILE_SYSTEM_INFO) + (UINT64)TmpStrLen * sizeof(CHAR16);
+			MaxLen = (INTN)(FSInfo->Size - sizeof(EFI_FILE_SYSTEM_INFO)) / sizeof(CHAR16);
+			SafeStrCpy(FSInfo->VolumeLabel, MaxLen, File->FileSystem->NtfsVolumeLabel);
+			FSInfo->Size = sizeof(EFI_FILE_SYSTEM_INFO) + (UINT64)MaxLen * sizeof(CHAR16);
 			*Len = (INTN)FSInfo->Size;
 		}
 		return EFI_SUCCESS;
@@ -534,7 +535,7 @@ FileGetInfo(EFI_FILE_HANDLE This, EFI_GUID *Type, UINTN *Len, VOID *Data)
 
 		/* Get the volume label */
 		if (File->FileSystem->NtfsVolumeLabel != NULL)
-			StrnCpy(VLInfo->VolumeLabel, File->FileSystem->NtfsVolumeLabel, *Len / sizeof(CHAR16));
+			SafeStrCpy(VLInfo->VolumeLabel, *Len / sizeof(CHAR16), File->FileSystem->NtfsVolumeLabel);
 		else
 			VLInfo->VolumeLabel[0] = 0;
 		return EFI_SUCCESS;
@@ -669,7 +670,15 @@ FSInstall(EFI_FS *This, EFI_HANDLE ControllerHandle)
 	This->RootFile->EfiFile.FlushEx = FileFlushEx;
 
 	/* Setup the other attributes */
-	This->RootFile->Path = StrDuplicate(L"/");
+	This->RootFile->Path = AllocateZeroPool(2 * sizeof(CHAR16));
+	if (This->RootFile->Path == NULL) {
+		Status = EFI_OUT_OF_RESOURCES;
+		PrintStatusError(Status, L"Could not allocate root file name");
+		NtfsDestroyFile(This->RootFile);
+		NtfsUnmount(This);
+		return Status;
+	}
+	This->RootFile->Path[0] = PATH_CHAR;
 	This->RootFile->Basename = &This->RootFile->Path[1];
 	This->RootFile->IsDir = TRUE;
 

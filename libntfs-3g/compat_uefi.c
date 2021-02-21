@@ -116,6 +116,7 @@ void free(void* a)
 	FreePool(a);
 }
 
+/* TODO: Secure all these string functions */
 int atoi(const char* c)
 {
 	int value = 0;

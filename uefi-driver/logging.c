@@ -67,12 +67,16 @@ VOID
 SetLogging(VOID)
 {
 	EFI_STATUS Status;
-	CHAR16 LogVar[4];
+	CHAR16 LogVar[4] = { 0 };
 	UINTN i, LogVarSize = sizeof(LogVar);
 
 	Status = gRT->GetVariable(L"FS_LOGGING", &ShellVariable, NULL, &LogVarSize, LogVar);
-	if (Status == EFI_SUCCESS)
-		LogLevel = Atoi(LogVar);
+	if (Status == EFI_SUCCESS) {
+		LogLevel = 0;
+		/* The log variable should only ever be a single decimal digit */
+		if ((LogVar[1] == 0) && (LogVar[0] >= L'0') && (LogVar[0] <= L'9'))
+			LogLevel = LogVar[0] - L'0';
+	}
 
 	for (i = 0; i < ARRAYSIZE(PrintTable); i++)
 		*PrintTable[i] = (i < LogLevel)?(Print_t)Print:(Print_t)PrintNone;

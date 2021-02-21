@@ -147,7 +147,7 @@ NtfsMount(EFI_FS* FileSystem)
 
 	/* ntfs_ucstombs() can be used to convert to UTF-8 */
 	ntfs_ucstombs(FileSystem->DevicePathString,
-		StrLen(FileSystem->DevicePathString), &DevName, 0);
+		SafeStrLen(FileSystem->DevicePathString), &DevName, 0);
 	if (DevName == NULL)
 		return EFI_OUT_OF_RESOURCES;
 
@@ -234,7 +234,7 @@ NtfsOpen(EFI_NTFS_FILE* File)
 	char* path = NULL;
 	int sz;
 
-	sz = ntfs_ucstombs(File->Path, StrLen(File->Path), &path, 0);
+	sz = ntfs_ucstombs(File->Path, SafeStrLen(File->Path), &path, 0);
 	if (sz <= 0) {
 		PrintError(L"Could not allocate path string\n");
 		return EFI_OUT_OF_RESOURCES;
