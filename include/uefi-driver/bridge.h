@@ -45,6 +45,6 @@ EFI_STATUS NtfsRead(EFI_NTFS_FILE* File, VOID* Data, UINTN* Len);
 UINT64 NtfsGetFileSize(EFI_NTFS_FILE* File);
 UINT64 NtfsGetFileOffset(EFI_NTFS_FILE* File);
 VOID NtfsSetFileOffset(EFI_NTFS_FILE* File, UINT64 Offset);
-EFI_STATUS NtfsSetInfo(EFI_FILE_INFO* Info, VOID* NtfsVolume, CONST UINT64 MRef);
+EFI_STATUS NtfsSetInfo(EFI_FILE_INFO* Info, VOID* NtfsVolume, CONST UINT64 MRef, BOOLEAN IsDir);
 EFI_STATUS NtfsReadDir(EFI_NTFS_FILE* File, NTFS_DIRHOOK Hook, VOID* HookData);
 UINT64 NtfsGetVolumeFreeSpace(VOID* NtfsVolume);

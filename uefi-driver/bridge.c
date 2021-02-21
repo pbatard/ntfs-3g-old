@@ -323,7 +323,7 @@ NtfsSetFileOffset(EFI_NTFS_FILE* File, UINT64 Offset)
 }
 
 EFI_STATUS
-NtfsSetInfo(EFI_FILE_INFO* Info, VOID* NtfsVolume, CONST UINT64 MRef)
+NtfsSetInfo(EFI_FILE_INFO* Info, VOID* NtfsVolume, CONST UINT64 MRef, BOOLEAN IsDir)
 {
 	ntfs_inode* ni = ntfs_inode_open(NtfsVolume, MRef);
 
@@ -336,6 +336,8 @@ NtfsSetInfo(EFI_FILE_INFO* Info, VOID* NtfsVolume, CONST UINT64 MRef)
 	ConvertUnixTimeToEfiTime(NTFS_TO_UNIX_TIME(ni->last_data_change_time), &Info->ModificationTime);
 
 	Info->Attribute = 0;
+	if (IsDir)
+		Info->Attribute |= EFI_FILE_DIRECTORY;
 	if (ni->flags & FILE_ATTR_READONLY)
 		Info->Attribute |= EFI_FILE_READ_ONLY;
 	if (ni->flags & FILE_ATTR_HIDDEN)

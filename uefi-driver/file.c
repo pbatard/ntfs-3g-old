@@ -255,11 +255,10 @@ static INT32 DirHook(VOID* Data, CONST CHAR16* Name,
 	HookData->Info->FileName[Len] = 0;
 	/* The Info struct size already accounts for the extra NUL */
 	HookData->Info->Size = sizeof(EFI_FILE_INFO) + (UINT64)Len * sizeof(CHAR16);
-	if (DtType == 4)	/* NTFS_DT_DIR */
-		HookData->Info->Attribute |= EFI_FILE_DIRECTORY;
 
 	/* Set the Info attributes we obtain from the inode */
-	Status = NtfsSetInfo(HookData->Info, HookData->Parent->FileSystem->NtfsVolume, MRef);
+	Status = NtfsSetInfo(HookData->Info, HookData->Parent->FileSystem->NtfsVolume,
+		MRef, (DtType == 4));	/* DtType is 4 for directories */
 	if (EFI_ERROR(Status))
 		PrintStatusError(Status, L"Could not set directory entry info");
 
