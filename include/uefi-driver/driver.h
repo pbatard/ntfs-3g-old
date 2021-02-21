@@ -69,6 +69,12 @@
 #endif
 #endif
 
+/* Sort out the differences between EDK2 and gnu-efi */
+#ifdef _GNU_EFI
+#define BASE_CR                      _CR
+#define EFI_FILE_SYSTEM_VOLUME_LABEL EFI_FILE_SYSTEM_VOLUME_LABEL_INFO
+#endif
+
 /* Sort out the platform specifics */
 #if defined(_M_ARM64) || defined(__aarch64__) || defined (_M_X64) || defined(__x86_64__)
 #define PERCENT_P               L"%llx"

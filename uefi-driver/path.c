@@ -63,7 +63,7 @@ DevicePathToString(CONST EFI_DEVICE_PATH* DevicePath)
 	EFI_STATUS Status;
 	EFI_DEVICE_PATH_TO_TEXT_PROTOCOL* DevicePathToText;
 
-	Status = BS->LocateProtocol(&gEfiDevicePathToTextProtocolGuid, NULL, (VOID**)&DevicePathToText);
+	Status = gBS->LocateProtocol(&gEfiDevicePathToTextProtocolGuid, NULL, (VOID**)&DevicePathToText);
 	if (Status == EFI_SUCCESS)
 		DevicePathString = DevicePathToText->ConvertDevicePathToText(DevicePath, FALSE, FALSE);
 	else

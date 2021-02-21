@@ -129,13 +129,13 @@ FSBindingSupported(EFI_DRIVER_BINDING_PROTOCOL* This,
 	EFI_DISK_IO2_PROTOCOL* DiskIo2;
 
 	/* Don't handle this unless we can get exclusive access to DiskIO through it */
-	Status = BS->OpenProtocol(ControllerHandle,
+	Status = gBS->OpenProtocol(ControllerHandle,
 		&gEfiDiskIo2ProtocolGuid, (VOID**)&DiskIo2,
 		This->DriverBindingHandle, ControllerHandle,
 		EFI_OPEN_PROTOCOL_BY_DRIVER);
 	if (EFI_ERROR(Status))
 		DiskIo2 = NULL;
-	Status = BS->OpenProtocol(ControllerHandle,
+	Status = gBS->OpenProtocol(ControllerHandle,
 		&gEfiDiskIoProtocolGuid, (VOID**)&DiskIo,
 		This->DriverBindingHandle, ControllerHandle,
 		EFI_OPEN_PROTOCOL_BY_DRIVER);
@@ -149,9 +149,9 @@ FSBindingSupported(EFI_DRIVER_BINDING_PROTOCOL* This,
 	 * actually support, but not check if the target is valid or
 	 * initialize anything, so we must close all protocols we opened.
 	 */
-	BS->CloseProtocol(ControllerHandle, &gEfiDiskIo2ProtocolGuid,
+	gBS->CloseProtocol(ControllerHandle, &gEfiDiskIo2ProtocolGuid,
 		This->DriverBindingHandle, ControllerHandle);
-	BS->CloseProtocol(ControllerHandle, &gEfiDiskIoProtocolGuid,
+	gBS->CloseProtocol(ControllerHandle, &gEfiDiskIoProtocolGuid,
 		This->DriverBindingHandle, ControllerHandle);
 
 	return EFI_SUCCESS;
@@ -195,14 +195,14 @@ FSBindingStart(EFI_DRIVER_BINDING_PROTOCOL* This,
 	Instance->DevicePathString = DevicePathToString(DevicePath);
 
 	/* Get access to the Block IO protocol for this controller */
-	Status = BS->OpenProtocol(ControllerHandle,
+	Status = gBS->OpenProtocol(ControllerHandle,
 		&gEfiBlockIo2ProtocolGuid, (VOID**)&Instance->BlockIo2,
 		This->DriverBindingHandle, ControllerHandle,
 		EFI_OPEN_PROTOCOL_GET_PROTOCOL);
 	if (EFI_ERROR(Status))
 		Instance->BlockIo2 = NULL;
 
-	Status = BS->OpenProtocol(ControllerHandle,
+	Status = gBS->OpenProtocol(ControllerHandle,
 		&gEfiBlockIoProtocolGuid, (VOID**)&Instance->BlockIo,
 		This->DriverBindingHandle, ControllerHandle,
 		/*
@@ -217,14 +217,14 @@ FSBindingStart(EFI_DRIVER_BINDING_PROTOCOL* This,
 	}
 
 	/* Get exclusive access to the Disk IO protocol */
-	Status = BS->OpenProtocol(ControllerHandle,
+	Status = gBS->OpenProtocol(ControllerHandle,
 		&gEfiDiskIo2ProtocolGuid, (VOID**)&Instance->DiskIo2,
 		This->DriverBindingHandle, ControllerHandle,
 		EFI_OPEN_PROTOCOL_BY_DRIVER);
 	if (EFI_ERROR(Status))
 		Instance->DiskIo2 = NULL;
 
-	Status = BS->OpenProtocol(ControllerHandle,
+	Status = gBS->OpenProtocol(ControllerHandle,
 		&gEfiDiskIoProtocolGuid, (VOID**)&Instance->DiskIo,
 		This->DriverBindingHandle, ControllerHandle,
 		EFI_OPEN_PROTOCOL_BY_DRIVER);
@@ -243,10 +243,10 @@ error:
 		 * no other FS driver would be able to access this partition.
 		 */
 		if (Instance->DiskIo2 != NULL)
-			BS->CloseProtocol(ControllerHandle, &gEfiDiskIo2ProtocolGuid,
+			gBS->CloseProtocol(ControllerHandle, &gEfiDiskIo2ProtocolGuid,
 				This->DriverBindingHandle, ControllerHandle);
 		if (Instance->DiskIo != NULL)
-			BS->CloseProtocol(ControllerHandle, &gEfiDiskIoProtocolGuid,
+			gBS->CloseProtocol(ControllerHandle, &gEfiDiskIoProtocolGuid,
 				This->DriverBindingHandle, ControllerHandle);
 		FreeFsInstance(Instance);
 	}
@@ -265,7 +265,7 @@ FSBindingStop(EFI_DRIVER_BINDING_PROTOCOL* This,
 	PrintDebug(L"FSBindingStop\n");
 
 	/* Get a pointer back to our FS instance through its installed protocol */
-	Status = BS->OpenProtocol(ControllerHandle,
+	Status = gBS->OpenProtocol(ControllerHandle,
 		&gEfiSimpleFileSystemProtocolGuid, (VOID**)&FileIoInterface,
 		This->DriverBindingHandle, ControllerHandle,
 		EFI_OPEN_PROTOCOL_GET_PROTOCOL);
@@ -274,14 +274,14 @@ FSBindingStop(EFI_DRIVER_BINDING_PROTOCOL* This,
 		return Status;
 	}
 
-	Instance = _CR(FileIoInterface, EFI_FS, FileIoInterface);
+	Instance = BASE_CR(FileIoInterface, EFI_FS, FileIoInterface);
 
 	/* Perform target file system cleanup */
 	FSUninstall(Instance, ControllerHandle);
 
-	BS->CloseProtocol(ControllerHandle, &gEfiDiskIo2ProtocolGuid,
+	gBS->CloseProtocol(ControllerHandle, &gEfiDiskIo2ProtocolGuid,
 		This->DriverBindingHandle, ControllerHandle);
-	BS->CloseProtocol(ControllerHandle, &gEfiDiskIoProtocolGuid,
+	gBS->CloseProtocol(ControllerHandle, &gEfiDiskIoProtocolGuid,
 		This->DriverBindingHandle, ControllerHandle);
 
 	FreeFsInstance(Instance);
@@ -320,13 +320,13 @@ static EFI_DRIVER_BINDING_PROTOCOL FSDriverBinding = {
 	UINTN i;
 
 	/* Enumerate all handles */
-	Status = BS->LocateHandleBuffer(AllHandles, NULL, NULL, &NumHandles, &Handles);
+	Status = gBS->LocateHandleBuffer(AllHandles, NULL, NULL, &NumHandles, &Handles);
 
 	/* Disconnect controllers linked to our driver. This action will trigger a call to BindingStop */
 	if (Status == EFI_SUCCESS) {
 		for (i = 0; i < NumHandles; i++) {
 			/* Make sure to filter on DriverBindingHandle, else EVERYTHING gets disconnected! */
-			Status = BS->DisconnectController(Handles[i], FSDriverBinding.DriverBindingHandle, NULL);
+			Status = gBS->DisconnectController(Handles[i], FSDriverBinding.DriverBindingHandle, NULL);
 			if (Status == EFI_SUCCESS)
 				PrintDebug(L"DisconnectController[%d]\n", i);
 		}
@@ -334,15 +334,15 @@ static EFI_DRIVER_BINDING_PROTOCOL FSDriverBinding = {
 		PrintStatusError(Status, L"Unable to enumerate handles");
 	}
 	if (Handles != NULL)
-		BS->FreePool(Handles);
+		gBS->FreePool(Handles);
 
 	/* Now that all controllers are disconnected, we can safely remove our protocols */
-	BS->UninstallMultipleProtocolInterfaces(ImageHandle,
+	gBS->UninstallMultipleProtocolInterfaces(ImageHandle,
 		&gEfiDriverBindingProtocolGuid, &FSDriverBinding,
 		NULL);
 
 	/* Uninstall our mutex (we're the only instance that can run this code) */
-	BS->UninstallMultipleProtocolInterfaces(MutexHandle,
+	gBS->UninstallMultipleProtocolInterfaces(MutexHandle,
 		&MutexGUID, &MutexProtocol,
 		NULL);
 
@@ -373,7 +373,7 @@ FSDriverInstall(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable)
 	/* Prevent the driver from being loaded twice by detecting and trying to
 	 * instantiate a custom protocol, which we use as a global mutex.
 	 */
-	Status = BS->LocateProtocol(&MutexGUID, NULL, &Interface);
+	Status = gBS->LocateProtocol(&MutexGUID, NULL, &Interface);
 	if (Status == EFI_SUCCESS) {
 		PrintError(L"This driver has already been installed\n");
 		return EFI_LOAD_ERROR;
@@ -383,7 +383,7 @@ FSDriverInstall(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable)
 		PrintStatusError(Status, L"Could not locate global mutex");
 		return Status;
 	}
-	Status = BS->InstallMultipleProtocolInterfaces(&MutexHandle,
+	Status = gBS->InstallMultipleProtocolInterfaces(&MutexHandle,
 		&MutexGUID, &MutexProtocol,
 		NULL);
 	if (EFI_ERROR(Status)) {
@@ -392,7 +392,7 @@ FSDriverInstall(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable)
 	}
 
 	/* Grab a handle to this image, so that we can add an unload to our driver */
-	Status = BS->OpenProtocol(ImageHandle, &gEfiLoadedImageProtocolGuid,
+	Status = gBS->OpenProtocol(ImageHandle, &gEfiLoadedImageProtocolGuid,
 		(VOID**)&LoadedImage, ImageHandle,
 		NULL, EFI_OPEN_PROTOCOL_GET_PROTOCOL);
 	if (EFI_ERROR(Status)) {
@@ -405,7 +405,7 @@ FSDriverInstall(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable)
 	FSDriverBinding.DriverBindingHandle = ImageHandle;
 
 	/* Install driver */
-	Status = BS->InstallMultipleProtocolInterfaces(&FSDriverBinding.DriverBindingHandle,
+	Status = gBS->InstallMultipleProtocolInterfaces(&FSDriverBinding.DriverBindingHandle,
 		&gEfiDriverBindingProtocolGuid, &FSDriverBinding,
 		&gEfiComponentNameProtocolGuid, &FSComponentName,
 		&gEfiComponentName2ProtocolGuid, &FSComponentName2,

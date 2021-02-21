@@ -115,20 +115,20 @@ NtfsGetEfiTime(EFI_NTFS_FILE* File, EFI_TIME* Time, INTN Type)
 }
 
 VOID
-NtfsSetLogger(UINTN LogLevel)
+NtfsSetLogger(UINTN Level)
 {
 	/* Critical is always enabled for the UEFI driver */
 	UINT32 levels = NTFS_LOG_LEVEL_CRITICAL;
 	
-	if (LogLevel >= FS_LOGLEVEL_ERROR)
+	if (Level >= FS_LOGLEVEL_ERROR)
 		levels |= NTFS_LOG_LEVEL_ERROR | NTFS_LOG_LEVEL_PERROR;
-	if (LogLevel >= FS_LOGLEVEL_WARNING)
+	if (Level >= FS_LOGLEVEL_WARNING)
 		levels |= NTFS_LOG_LEVEL_WARNING;
-	if (LogLevel >= FS_LOGLEVEL_INFO)
+	if (Level >= FS_LOGLEVEL_INFO)
 		levels |= NTFS_LOG_LEVEL_INFO | NTFS_LOG_LEVEL_VERBOSE | NTFS_LOG_LEVEL_PROGRESS;
-	if (LogLevel >= FS_LOGLEVEL_DEBUG)
+	if (Level >= FS_LOGLEVEL_DEBUG)
 		levels |= NTFS_LOG_LEVEL_DEBUG | NTFS_LOG_LEVEL_QUIET;
-	if (LogLevel >= FS_LOGLEVEL_EXTRA)
+	if (Level >= FS_LOGLEVEL_EXTRA)
 		levels |= NTFS_LOG_LEVEL_TRACE;
 
 	ntfs_log_set_levels(levels);

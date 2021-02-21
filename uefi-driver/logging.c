@@ -70,7 +70,7 @@ SetLogging(VOID)
 	CHAR16 LogVar[4];
 	UINTN i, LogVarSize = sizeof(LogVar);
 
-	Status = RT->GetVariable(L"FS_LOGGING", &ShellVariable, NULL, &LogVarSize, LogVar);
+	Status = gRT->GetVariable(L"FS_LOGGING", &ShellVariable, NULL, &LogVarSize, LogVar);
 	if (Status == EFI_SUCCESS)
 		LogLevel = Atoi(LogVar);
 

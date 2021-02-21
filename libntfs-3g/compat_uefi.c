@@ -141,7 +141,7 @@ size_t strlen(const char* s)
 #ifdef __MAKEWITH_GNUEFI
 	return strlena(s);
 #else
-	return AsciiStrLen(s)
+	return AsciiStrLen(s);
 #endif
 }
 
@@ -404,7 +404,7 @@ int clock_gettime(clockid_t clk_id, struct timespec* now)
 		return -1;
 	}
 
-	Status = RT->GetTime(&Time, NULL);
+	Status = gRT->GetTime(&Time, NULL);
 	if (EFI_ERROR(Status)) {
 		ntfs_log_perror("%s: Failed to get the time (%r)", __FUNCTION__, Status);
 		errno = EIO;

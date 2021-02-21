@@ -60,7 +60,7 @@ FileOpen(EFI_FILE_HANDLE This, EFI_FILE_HANDLE *New,
 		CHAR16 *Name, UINT64 Mode, UINT64 Attributes)
 {
 	EFI_STATUS Status;
-	EFI_NTFS_FILE *File = _CR(This, EFI_NTFS_FILE, EfiFile);
+	EFI_NTFS_FILE *File = BASE_CR(This, EFI_NTFS_FILE, EfiFile);
 	EFI_NTFS_FILE *NewFile = NULL;
 	CHAR16 *Path = NULL;
 	INTN i, Len;
@@ -187,7 +187,7 @@ FileOpenEx(EFI_FILE_HANDLE This, EFI_FILE_HANDLE *New, CHAR16 *Name,
 static EFI_STATUS EFIAPI
 FileClose(EFI_FILE_HANDLE This)
 {
-	EFI_NTFS_FILE *File = _CR(This, EFI_NTFS_FILE, EfiFile);
+	EFI_NTFS_FILE *File = BASE_CR(This, EFI_NTFS_FILE, EfiFile);
 
 	PrintInfo(L"Close(" PERCENT_P L"|'%s') %s\n", (UINTN) This, File->Path,
 		IS_ROOT(File) ? L"<ROOT>" : L"");
@@ -214,7 +214,7 @@ FileClose(EFI_FILE_HANDLE This)
 static EFI_STATUS EFIAPI
 FileDelete(EFI_FILE_HANDLE This)
 {
-	EFI_NTFS_FILE *File = _CR(This, EFI_NTFS_FILE, EfiFile);
+	EFI_NTFS_FILE *File = BASE_CR(This, EFI_NTFS_FILE, EfiFile);
 
 	PrintError(L"Cannot delete '%s'\n", File->Path);
 
@@ -327,7 +327,7 @@ FileReadDir(EFI_NTFS_FILE *File, UINTN *Len, VOID *Data)
 static EFI_STATUS EFIAPI
 FileRead(EFI_FILE_HANDLE This, UINTN *Len, VOID *Data)
 {
-	EFI_NTFS_FILE *File = _CR(This, EFI_NTFS_FILE, EfiFile);
+	EFI_NTFS_FILE *File = BASE_CR(This, EFI_NTFS_FILE, EfiFile);
 
 	PrintInfo(L"Read(" PERCENT_P L"|'%s', %d) %s\n", (UINTN) This, File->Path,
 			*Len, File->IsDir?L"<DIR>":L"");
@@ -357,7 +357,7 @@ FileReadEx(IN EFI_FILE_PROTOCOL *This, IN OUT EFI_FILE_IO_TOKEN *Token)
 static EFI_STATUS EFIAPI
 FileWrite(EFI_FILE_HANDLE This, UINTN *Len, VOID *Data)
 {
-	EFI_NTFS_FILE *File = _CR(This, EFI_NTFS_FILE, EfiFile);
+	EFI_NTFS_FILE *File = BASE_CR(This, EFI_NTFS_FILE, EfiFile);
 
 #ifdef FORCE_READONLY
 	PrintError(L"Cannot write to '%s'\n", File->Path);
@@ -385,7 +385,7 @@ FileWriteEx(IN EFI_FILE_PROTOCOL *This, IN OUT EFI_FILE_IO_TOKEN *Token)
 static EFI_STATUS EFIAPI
 FileSetPosition(EFI_FILE_HANDLE This, UINT64 Position)
 {
-	EFI_NTFS_FILE *File = _CR(This, EFI_NTFS_FILE, EfiFile);
+	EFI_NTFS_FILE *File = BASE_CR(This, EFI_NTFS_FILE, EfiFile);
 	UINT64 FileSize;
 
 	PrintInfo(L"SetPosition(" PERCENT_P L"|'%s', %lld) %s\n", (UINTN) This,
@@ -424,7 +424,7 @@ FileSetPosition(EFI_FILE_HANDLE This, UINT64 Position)
 static EFI_STATUS EFIAPI
 FileGetPosition(EFI_FILE_HANDLE This, UINT64 *Position)
 {
-	EFI_NTFS_FILE *File = _CR(This, EFI_NTFS_FILE, EfiFile);
+	EFI_NTFS_FILE *File = BASE_CR(This, EFI_NTFS_FILE, EfiFile);
 
 	PrintInfo(L"GetPosition(" PERCENT_P L"|'%s', %lld)\n", (UINTN) This, File->Path);
 
@@ -447,10 +447,10 @@ FileGetPosition(EFI_FILE_HANDLE This, UINT64 *Position)
 static EFI_STATUS EFIAPI
 FileGetInfo(EFI_FILE_HANDLE This, EFI_GUID *Type, UINTN *Len, VOID *Data)
 {
-	EFI_NTFS_FILE *File = _CR(This, EFI_NTFS_FILE, EfiFile);
+	EFI_NTFS_FILE *File = BASE_CR(This, EFI_NTFS_FILE, EfiFile);
 	EFI_FILE_SYSTEM_INFO *FSInfo = (EFI_FILE_SYSTEM_INFO *) Data;
 	EFI_FILE_INFO *Info = (EFI_FILE_INFO *) Data;
-	EFI_FILE_SYSTEM_VOLUME_LABEL_INFO *VLInfo = (EFI_FILE_SYSTEM_VOLUME_LABEL_INFO *)Data;
+	EFI_FILE_SYSTEM_VOLUME_LABEL *VLInfo = (EFI_FILE_SYSTEM_VOLUME_LABEL *)Data;
 	UINTN TmpStrLen;
 
 	PrintInfo(L"GetInfo(" PERCENT_P L"|'%s', %d) %s\n", (UINTN) This,
@@ -562,7 +562,7 @@ FileGetInfo(EFI_FILE_HANDLE This, EFI_GUID *Type, UINTN *Len, VOID *Data)
 static EFI_STATUS EFIAPI
 FileSetInfo(EFI_FILE_HANDLE This, EFI_GUID *Type, UINTN Len, VOID *Data)
 {
-	EFI_NTFS_FILE *File = _CR(This, EFI_NTFS_FILE, EfiFile);
+	EFI_NTFS_FILE *File = BASE_CR(This, EFI_NTFS_FILE, EfiFile);
 
 #ifdef FORCE_READONLY
 	Print(L"Cannot set information of type ");
@@ -587,7 +587,7 @@ FileSetInfo(EFI_FILE_HANDLE This, EFI_GUID *Type, UINTN Len, VOID *Data)
 static EFI_STATUS EFIAPI
 FileFlush(EFI_FILE_HANDLE This)
 {
-	EFI_NTFS_FILE *File = _CR(This, EFI_NTFS_FILE, EfiFile);
+	EFI_NTFS_FILE *File = BASE_CR(This, EFI_NTFS_FILE, EfiFile);
 
 	PrintInfo(L"Flush(" PERCENT_P L"|'%s')\n", (UINTN) This, File->Path);
 #ifdef FORCE_READONLY
@@ -614,7 +614,7 @@ FileFlushEx(EFI_FILE_HANDLE This, EFI_FILE_IO_TOKEN *Token)
 EFI_STATUS EFIAPI
 FileOpenVolume(EFI_SIMPLE_FILE_SYSTEM_PROTOCOL *This, EFI_FILE_HANDLE *Root)
 {
-	EFI_FS *FSInstance = _CR(This, EFI_FS, FileIoInterface);
+	EFI_FS *FSInstance = BASE_CR(This, EFI_FS, FileIoInterface);
 
 	PrintInfo(L"OpenVolume\n");
 	*Root = &FSInstance->RootFile->EfiFile;
@@ -675,7 +675,7 @@ FSInstall(EFI_FS *This, EFI_HANDLE ControllerHandle)
 	This->RootFile->IsDir = TRUE;
 
 	/* Install the simple file system protocol. */
-	Status = BS->InstallMultipleProtocolInterfaces(&ControllerHandle,
+	Status = gBS->InstallMultipleProtocolInterfaces(&ControllerHandle,
 			&gEfiSimpleFileSystemProtocolGuid, &This->FileIoInterface,
 			NULL);
 	if (EFI_ERROR(Status)) {
@@ -696,7 +696,7 @@ FSUninstall(EFI_FS *This, EFI_HANDLE ControllerHandle)
 
 	PrintInfo(L"FSUninstall: %s\n", This->DevicePathString);
 
-	BS->UninstallMultipleProtocolInterfaces(ControllerHandle,
+	gBS->UninstallMultipleProtocolInterfaces(ControllerHandle,
 			&gEfiSimpleFileSystemProtocolGuid, &This->FileIoInterface,
 			NULL);
 
