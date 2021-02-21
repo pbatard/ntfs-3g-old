@@ -324,15 +324,15 @@ int ntfs_log_redirect(const char *function, const char *file,
 {
 	int olderr = errno;
 	int ret;
-	va_list args;
+	ntfs_va_list args;
 
 	if (!(ntfs_log.levels & level))		/* Don't log this message */
 		return 0;
 
-	va_start(args, format);
+	ntfs_va_start(args, format);
 	errno = olderr;
 	ret = ntfs_log.handler(function, file, line, level, data, format, args);
-	va_end(args);
+	ntfs_va_end(args);
 
 	errno = olderr;
 	return ret;
@@ -365,7 +365,7 @@ int ntfs_log_handler_syslog(const char *function  __attribute__((unused)),
 			    const char *file __attribute__((unused)), 
 			    int line __attribute__((unused)), u32 level, 
 			    void *data __attribute__((unused)), 
-			    const char *format, va_list args)
+			    const char *format, ntfs_va_list args)
 {
 	char logbuf[LOG_LINE_LEN];
 	int ret, olderr = errno;
@@ -403,9 +403,9 @@ out:
 
 void ntfs_log_early_error(const char *format, ...)
 {
-	va_list args;
+	ntfs_va_list args;
 
-	va_start(args, format);
+	ntfs_va_start(args, format);
 #ifdef HAVE_SYSLOG_H
 	openlog("ntfs-3g", LOG_PID, LOG_USER);
 	ntfs_log_handler_syslog(NULL, NULL, 0,
@@ -418,7 +418,7 @@ void ntfs_log_early_error(const char *format, ...)
 #else
 	vfprintf(stderr,format,args);
 #endif
-	va_end(args);
+	ntfs_va_end(args);
 }
 
 /**
@@ -438,7 +438,7 @@ void ntfs_log_early_error(const char *format, ...)
  */
 int ntfs_log_handler_null(const char* function __attribute__((unused)), const char* file __attribute__((unused)),
 	int line __attribute__((unused)), u32 level __attribute__((unused)), void* data __attribute__((unused)),
-	const char* format __attribute__((unused)), va_list args __attribute__((unused)))
+	const char* format __attribute__((unused)), ntfs_va_list args __attribute__((unused)))
 {
 	return 0;
 }
@@ -466,7 +466,7 @@ int ntfs_log_handler_null(const char* function __attribute__((unused)), const ch
 
 int ntfs_log_handler_uefi(const char* function __attribute__((unused)), const char* file __attribute__((unused)),
 	int line __attribute__((unused)), u32 level __attribute__((unused)), void* data __attribute__((unused)),
-	const char* format __attribute__((unused)), va_list args __attribute__((unused)))
+	const char* format __attribute__((unused)), ntfs_va_list args __attribute__((unused)))
 {
 	char logbuf[LOG_LINE_LEN];
 	size_t i, ret;
@@ -511,7 +511,7 @@ int ntfs_log_handler_uefi(const char* function __attribute__((unused)), const ch
  *          num  Number of output characters
  */
 int ntfs_log_handler_fprintf(const char *function, const char *file,
-	int line, u32 level, void *data, const char *format, va_list args)
+	int line, u32 level, void *data, const char *format, ntfs_va_list args)
 {
 #ifdef DEBUG
 	int i;
@@ -587,7 +587,7 @@ int ntfs_log_handler_fprintf(const char *function, const char *file,
  *          num  Number of output characters
  */
 int ntfs_log_handler_stdout(const char *function, const char *file,
-	int line, u32 level, void *data, const char *format, va_list args)
+	int line, u32 level, void *data, const char *format, ntfs_va_list args)
 {
 	if (!data)
 		data = stdout;
@@ -618,7 +618,7 @@ int ntfs_log_handler_stdout(const char *function, const char *file,
  *          num  Number of output characters
  */
 int ntfs_log_handler_outerr(const char *function, const char *file,
-	int line, u32 level, void *data, const char *format, va_list args)
+	int line, u32 level, void *data, const char *format, ntfs_va_list args)
 {
 	if (!data)
 		data = ntfs_log_get_stream(level);
@@ -648,7 +648,7 @@ int ntfs_log_handler_outerr(const char *function, const char *file,
  *          num  Number of output characters
  */
 int ntfs_log_handler_stderr(const char *function, const char *file,
-	int line, u32 level, void *data, const char *format, va_list args)
+	int line, u32 level, void *data, const char *format, ntfs_va_list args)
 {
 	if (!data)
 		data = stderr;
