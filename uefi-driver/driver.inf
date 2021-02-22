@@ -96,6 +96,6 @@
   *_*_IA32_CC_FLAGS       = -DFORMAT=efi-app-ia32
   *_*_X64_CC_FLAGS        = -DFORMAT=efi-app-x64
   *_*_*_CC_FLAGS          = -Os -DUEFI_DRIVER
-  GCC:*_*_*_CC_FLAGS      = -Wno-format -Wno-unused-function
+  GCC:*_*_*_CC_FLAGS      = -Wno-format -Wno-unused-function -Wno-incompatible-pointer-types
   # TODO: Review the warnings that should actually be disabled
   MSFT:*_*_*_CC_FLAGS     = -DUSE_COMPILER_INTRINSICS_LIB -D_NO_CRT_STDIO_INLINE -D_OFF_T_DEFINED -D_off_t=int64_t -Doff_t=int64_t /wd4028 /wd4068 /wd4133 /wd4146 /wd4201 /wd4204 /wd4244 /wd4245 /wd4267 /wd4311 /wd4312 /wd4334 /wd4706
