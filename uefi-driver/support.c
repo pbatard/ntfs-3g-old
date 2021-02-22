@@ -225,7 +225,7 @@ CompareDevicePaths(CONST EFI_DEVICE_PATH* dp1, CONST EFI_DEVICE_PATH* dp2)
 /*
  * Clean an existing path from '.', '..' and/or double path separators.
  * This will for instance tranform 'a//b/c/./..///d/./e/..' into 'a/b/d'.
- * Note that trailing path separtors are perserved, if any.
+ * Note that, for anything but '/', trailing path separtors are removed.
  */
 VOID CleanPath(CHAR16* Path)
 {
@@ -293,4 +293,8 @@ VOID CleanPath(CHAR16* Path)
 		if (*p != BLANK_CHAR && (*p != PATH_CHAR || i == 0 || Path[i - 1] != PATH_CHAR))
 			Path[i++] = *p;
 	Path[i] = 0;
+
+	/* Remove any trailing PATH_CHAR (but keep '/' as is) */
+	if (i > 1 && Path[i - 1] == PATH_CHAR)
+		Path[i - 1] = 0;
 }
