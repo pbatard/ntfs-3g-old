@@ -8,12 +8,12 @@
 ##
 
 [Defines]
-  PLATFORM_NAME                  = Ntfs
+  PLATFORM_NAME                  = ntfs-3g
   PLATFORM_GUID                  = 6DF51CCF-47D8-4035-8F1B-049B72C6DECF
   PLATFORM_VERSION               = 1.3
   DSC_SPECIFICATION              = 0x00010005
   SUPPORTED_ARCHITECTURES        = IA32|X64|EBC|ARM|AARCH64
-  OUTPUT_DIRECTORY               = Build/Ntfs
+  OUTPUT_DIRECTORY               = Build
   BUILD_TARGETS                  = DEBUG|RELEASE|NOOPT
   SKUID_IDENTIFIER               = DEFAULT
 
@@ -50,7 +50,7 @@
 
 [LibraryClasses.IA32, LibraryClasses.X64]
 !if $(TOOLCHAIN) == "VS2019"
-  NULL|NtfsPkg/.vs/CompilerIntrinsicsLib/CompilerIntrinsicsLib.inf
+  NULL|.vs/CompilerIntrinsicsLib/CompilerIntrinsicsLib.inf
 !endif
 
 ###################################################################################################
@@ -61,4 +61,4 @@
 ###################################################################################################
 
 [Components]
-  NtfsPkg/uefi-driver/driver.inf
+  uefi-driver/driver.inf

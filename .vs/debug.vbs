@@ -29,10 +29,8 @@ QEMU_OPTS  = "-nodefaults -vga std -serial vc"
 LIST_ONLY  = True
 ' Set to True if you need to download a file that might be cached locally
 NO_CACHE   = False
-' Set to True if you want to use drivers from the EDK2 repo instead of the VS ones
+' Set to True if you want to use drivers build through EDK2 instead of the VS/gnu-efi ones
 USE_EDK2   = False
-' Path of EDK2 for the above option
-EDK2_BASE  = "D:\edk2"
 
 ' You shouldn't have to mofify anything below this
 CONF       = WScript.Arguments(0)
@@ -180,7 +178,7 @@ End If
 ' Note: Linaro's QEMU-EFI.fd firmware is very sensitive about '/' vs '\'
 Call shell.Run("%COMSPEC% /c mkdir ""image\efi\boot""", 0, True)
 If USE_EDK2 Then
-  Call fso.CopyFile(EDK2_BASE & "\Build\NtfsDxe\RELEASE_VS2019\" & EDK_ARCH & "\" & FS & ".efi", "image\" & DRV, True)
+  Call fso.CopyFile("Build\RELEASE_VS2019\" & EDK_ARCH & "\" & FS & ".efi", "image\" & DRV, True)
 Else
   Call fso.CopyFile(BIN, "image\" & DRV, True)
 End If
