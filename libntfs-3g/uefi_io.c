@@ -27,19 +27,7 @@
 #include "logging.h"
 #include "compat.h"
 #include "unistr.h"
-
-#include "driver.h"
-
-#if defined(__MAKEWITH_GNUEFI)
-#include <efi.h>
-#include <efilib.h>
-#define FORWARD_LINK_REF(list) (list).Flink
-#else
-#include <Base.h>
-#include <Uefi.h>
-#include <Library/UefiRuntimeServicesTableLib.h>
-#define FORWARD_LINK_REF(list) (list).ForwardLink
-#endif
+#include "uefi_support.h"
 
 /**
  * ntfs_device_uefi_io_open: For UEFI drivers, there isn't much to

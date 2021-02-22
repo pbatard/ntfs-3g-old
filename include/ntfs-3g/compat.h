@@ -30,7 +30,7 @@
 #include "config.h"
 #endif
 #ifdef UEFI_DRIVER
-#include "compat_uefi.h"
+#include "uefi_compat.h"
 #endif
 #ifdef HAVE_SYS_PARAM_H
 #include <sys/param.h>

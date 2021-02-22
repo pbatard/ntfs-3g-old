@@ -1,5 +1,5 @@
 /*
- * compat_uefi.c - Definition of standard function calls for UEFI.
+ * uefi_compat.c - Definition of standard function calls for UEFI.
  *
  * Copyright © 2021 Pete Batard <pete@akeo.ie>
  *
@@ -22,6 +22,7 @@
 
 #include "compat.h"
 #include "logging.h"
+#include "uefi_support.h"
 
 #ifdef __MAKEWITH_GNUEFI
 #include <efi.h>
@@ -389,33 +390,7 @@ char* strerror(int errnum)
 	}
 }
 
-/*
- * Converts Gregorian date to seconds since 1970-01-01 00:00:00.
- * Assumes input in normal date format, i.e. 1980-12-31 23:59:59
- * => year=1980, mon=12, day=31, hour=23, min=59, sec=59.
- *
- * Derived from the GPLv2+ implementation found at:
- * http://xenbits.xen.org/hg/xen-3.3-testing.hg/file/98fe9e75d24b/extras/mini-os/arch/ia64/time.c
- */
-static UINT64 MkTime(EFI_TIME* Time)
-{
-	UINTN Month = Time->Month, Year = Time->Year;
 
-	/* 1..12 -> 11,12,1..10 */
-	if (0 >= (INTN)(Month -= 2)) {
-		Month += 12;	/* Puts Feb last since it has leap day */
-		Year -= 1;
-	}
-
-	return (
-		(
-			((UINT64)
-				(Year / 4 - Year / 100 + Year / 400 + 367 * Month / 12 + Time->Day) +
-				Year * 365 - 719499
-				) * 24 + Time->Hour /* now have hours */
-			) * 60 + Time->Minute /* now have minutes */
-		) * 60 + Time->Second; /* finally seconds */
-}
 
 /*
  * Returns the current time in a timespec struct.
@@ -441,7 +416,7 @@ int clock_gettime(clockid_t clk_id, struct timespec* now)
 		return -1;
 	}
 
-	now->tv_sec = MkTime(&Time);
+	now->tv_sec = EfiTimeToUnixTime(&Time);
 	now->tv_nsec = Time.Nanosecond;
 	return 0;
 }

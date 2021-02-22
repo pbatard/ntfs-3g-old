@@ -25,6 +25,12 @@
     <ClInclude Include="..\include\uefi-driver\bridge.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\include\uefi-driver\uefi_support.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\uefi-driver\uefi_logging.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\uefi-driver\driver.c">
@@ -33,7 +39,7 @@
     <ClCompile Include="..\uefi-driver\logging.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\uefi-driver\path.c">
+    <ClCompile Include="..\uefi-driver\support.c">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\uefi-driver\file.c">

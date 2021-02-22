@@ -83,7 +83,6 @@
     <ClCompile Include="..\libntfs-3g\bootsect.c" />
     <ClCompile Include="..\libntfs-3g\cache.c" />
     <ClCompile Include="..\libntfs-3g\collate.c" />
-    <ClCompile Include="..\libntfs-3g\compat_uefi.c" />
     <ClCompile Include="..\libntfs-3g\compress.c" />
     <ClCompile Include="..\libntfs-3g\debug.c" />
     <ClCompile Include="..\libntfs-3g\device.c" />
@@ -103,6 +102,7 @@
     <ClCompile Include="..\libntfs-3g\reparse.c" />
     <ClCompile Include="..\libntfs-3g\runlist.c" />
     <ClCompile Include="..\libntfs-3g\security.c" />
+    <ClCompile Include="..\libntfs-3g\uefi_compat.c" />
     <ClCompile Include="..\libntfs-3g\uefi_io.c" />
     <ClCompile Include="..\libntfs-3g\unistr.c" />
     <ClCompile Include="..\libntfs-3g\volume.c" />

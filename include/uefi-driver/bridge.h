@@ -20,7 +20,12 @@
 
 #include <stdint.h>
 
-#include "driver.h"
+#if defined(__MAKEWITH_GNUEFI)
+#include <efi.h>
+#else
+#include <Base.h>
+#include <Uefi.h>
+#endif
 
 /* Used with NtfsGetEfiTime */
 #define TIME_CREATED        0
@@ -30,10 +35,20 @@
 /* Similar to the MREF() macro from libntfs-3g */
 #define GetInodeNumber(x)   ((UINT64)((x) & 0XFFFFFFFFFFFFULL))
 
+/*
+ * The s64 and u64 types used for ntfs_filldir_t suprisingly do not
+ * always translate to the INT64 and UINT64 types used the EDK2, as
+ * EDK2/gcc may use a long (which is 64-bit on Linux) rather than a
+ * long long (also 64-bit) and the compiler will complain that the
+ * underlying types are different (!).
+ */
+typedef int64_t             INT64_T;
+typedef uint64_t            UINT64_T;
+
 /* This typedef mirrors the ntfs_filldir_t one in ntfs-3g's dir.h */
 typedef INT32(*NTFS_DIRHOOK)(VOID* HookData, CONST CHAR16* Name,
-	CONST INT32 NameLen, CONST INT32 NameType, CONST int64_t Pos,
-	CONST uint64_t MRef, CONST UINT32 DtType);
+	CONST INT32 NameLen, CONST INT32 NameType, CONST INT64_T Pos,
+	CONST UINT64_T MRef, CONST UINT32 DtType);
 
 VOID NtfsGetEfiTime(EFI_NTFS_FILE* File, EFI_TIME* Time, INTN Type);
 VOID NtfsSetLogger(UINTN LogLevel);

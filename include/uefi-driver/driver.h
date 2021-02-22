@@ -16,6 +16,8 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#pragma once
+
 #if defined(__MAKEWITH_GNUEFI)
 #include <efi.h>
 #include <efilib.h>
@@ -56,133 +58,17 @@
 #include <Guid/ShellVariableGuid.h>
 #endif
 
-#pragma once
-
-#if !defined(_MSC_VER)
-#if !defined(__GNUC__) || (__GNUC__ < 4) || (__GNUC__ == 4 && __GNUC_MINOR__ < 7)
-#error gcc 4.7 or later is required for the compilation of this driver.
-#endif
-
-/* Having GNU_EFI_USE_MS_ABI should avoid the need for that ugly uefi_call_wrapper */
-#if defined(_GNU_EFI) && !defined(GNU_EFI_USE_MS_ABI)
-#error gnu-efi, with option GNU_EFI_USE_MS_ABI, is required for the compilation of this driver.
-#endif
-#endif
-
-/* Sort out the differences between EDK2 and gnu-efi */
-#ifdef _GNU_EFI
-#define BASE_CR                      _CR
-#define EFI_FILE_SYSTEM_VOLUME_LABEL EFI_FILE_SYSTEM_VOLUME_LABEL_INFO
-#endif
-
-/* Sort out the platform specifics */
-#if defined(_M_ARM64) || defined(__aarch64__) || defined (_M_X64) || defined(__x86_64__)
-#define PERCENT_P               L"%llx"
-#else
-#define PERCENT_P               L"%x"
-#endif
+/* Define if you want to force all NTFS volumes to be opened read-only */
+#define FORCE_READONLY
 
 /* Define to the full name and version of this package. */
 #ifndef PACKAGE_STRING
-#define PACKAGE_STRING          "ntfs-3g 2021.02.20"
+#define PACKAGE_STRING              "ntfs-3g 2021.02.20"
 #endif
 
-/* Define to force all NTFS volumes to be opened read-only */
-#define FORCE_READONLY
-
-#ifndef ARRAYSIZE
-#define ARRAYSIZE(A)            (sizeof(A)/sizeof((A)[0]))
-#endif
-
-#ifndef MIN
-#define MIN(x,y)                ((x)<(y)?(x):(y))
-#endif
-
-#ifndef PATH_MAX
-#define PATH_MAX                4096
-#endif
-
-#ifndef PATH_CHAR
-#define PATH_CHAR               L'/'
-#endif
-
-#define _WIDEN(s)               L ## s
-#define WIDEN(s)                _WIDEN(s)
-
-#define MINIMUM_INFO_LENGTH     (sizeof(EFI_FILE_INFO) + PATH_MAX * sizeof(CHAR16))
-#define MINIMUM_FS_INFO_LENGTH  (sizeof(EFI_FILE_SYSTEM_INFO) + PATH_MAX * sizeof(CHAR16))
-#define IS_ROOT(File)           (File == File->FileSystem->RootFile)
-#define IS_PATH_DELIMITER(x)    (x == PATH_CHAR || x == L'\\')
-
-/* Logging */
-#define FS_LOGLEVEL_NONE        0
-#define FS_LOGLEVEL_ERROR       1
-#define FS_LOGLEVEL_WARNING     2
-#define FS_LOGLEVEL_INFO        3
-#define FS_LOGLEVEL_DEBUG       4
-#define FS_LOGLEVEL_EXTRA       5
-
-typedef UINTN(EFIAPI* Print_t)        (IN CONST CHAR16* fmt, ...);
-extern Print_t PrintError;
-extern Print_t PrintWarning;
-extern Print_t PrintInfo;
-extern Print_t PrintDebug;
-extern Print_t PrintExtra;
-
-#define FL_ASSERT(f, l, a)  if(!(a)) do { Print(L"*** ASSERT FAILED: %a(%d): %a ***\n", f, l, #a); while(1); } while(0)
-#define FS_ASSERT(a)        FL_ASSERT(__FILE__, __LINE__, a)
-
-/**
- * Secure string copy, that either uses the already secure version from
- * EDK2, or duplicates it for gnu-efi and asserts on any error.
- */
-static __inline VOID _SafeStrCpy(CHAR16* Destination, UINTN DestMax,
-	CONST CHAR16* Source, CONST CHAR8* File, CONST UINTN Line) {
-#ifdef _GNU_EFI
-	FL_ASSERT(File, Line, Destination != NULL);
-	FL_ASSERT(File, Line, Source != NULL);
-	FL_ASSERT(File, Line, DestMax != 0);
-	/*
-	 * EDK2 would use RSIZE_MAX, but we use the smaller PATH_MAX for
-	 * gnu-efi as it can help detect path overflows while debugging.
-	 */
-	FL_ASSERT(File, Line, DestMax <= PATH_MAX);
-	FL_ASSERT(File, Line, DestMax > StrLen(Source));
-	while (*Source != 0)
-		*(Destination++) = *(Source++);
-	*Destination = 0;
-#else
-	FL_ASSERT(File, Line, StrCpyS(Destination, DestMax, Source) == 0);
-#endif
-}
-
-#define SafeStrCpy(d, l, s) _SafeStrCpy(d, l, s, __FILE__, __LINE__)
-
-/**
- * Secure string length, that asserts if the string is NULL or if
- * the length is larger than a predetermined value (here PATH_MAX + 1)
- */
-static __inline UINTN _SafeStrLen(CHAR16* String, CONST CHAR8* File,
-	CONST UINTN Line) {
-	UINTN Len = 0;
-	FL_ASSERT(File, Line, String != NULL);
-	Len = StrLen(String);
-	FL_ASSERT(File, Line, Len <= PATH_MAX + 1);
-	return Len;
-}
-
-#define SafeStrLen(s) _SafeStrLen(s, __FILE__, __LINE__)
-
-/**
- * Print an error message along with a human readable EFI status code
- *
- * @v Status		EFI status code
- * @v Format		A non '\n' terminated error message string
- * @v ...			Any extra parameters
- */
-#define PrintStatusError(Status, Format, ...) \
-	if (LogLevel >= FS_LOGLEVEL_ERROR) { \
-		Print(Format, ##__VA_ARGS__); PrintStatus(Status); }
+#define MINIMUM_INFO_LENGTH         (sizeof(EFI_FILE_INFO) + PATH_MAX * sizeof(CHAR16))
+#define MINIMUM_FS_INFO_LENGTH      (sizeof(EFI_FILE_SYSTEM_INFO) + PATH_MAX * sizeof(CHAR16))
+#define IS_ROOT(File)               (File == File->FileSystem->RootFile)
 
 /* Forward declaration */
 struct _EFI_FS;
@@ -219,14 +105,8 @@ typedef struct _EFI_FS {
 	INT64                           Offset;
 } EFI_FS;
 
-extern UINTN LogLevel;
 extern LIST_ENTRY FsListHead;
 
-extern VOID SetLogging(VOID);
-extern VOID PrintStatus(EFI_STATUS Status);
-extern INTN CompareDevicePaths(CONST EFI_DEVICE_PATH* dp1, CONST EFI_DEVICE_PATH* dp2);
-extern VOID CleanPath(CHAR16* Path);
-extern CHAR16* DevicePathToString(CONST EFI_DEVICE_PATH* DevicePath);
 extern EFI_STATUS FSInstall(EFI_FS* This, EFI_HANDLE ControllerHandle);
 extern VOID FSUninstall(EFI_FS* This, EFI_HANDLE ControllerHandle);
 extern EFI_STATUS EFIAPI FileOpenVolume(EFI_SIMPLE_FILE_SYSTEM_PROTOCOL* This,

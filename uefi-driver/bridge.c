@@ -34,56 +34,11 @@
 
 #include "driver.h"
 #include "bridge.h"
+#include "uefi_logging.h"
+#include "uefi_support.h"
 
-#define PrintErrno()            PrintError(L"%a failed: %a\n", __FUNCTION__, strerror(errno))
-#define IS_DIR(ni)              (((ntfs_inode*)(ni))->mrec->flags & MFT_RECORD_IS_DIRECTORY)
-#define NTFS_TO_UNIX_TIME(t)    ((t - (NTFS_TIME_OFFSET)) / 10000000)
-
-
-/* From https://www.oryx-embedded.com/doc/date__time_8c_source.html */
-static VOID ConvertUnixTimeToEfiTime(time_t t, EFI_TIME* Time)
-{
-	UINT32 a, b, c, d, e, f;
-
-	ZeroMem(Time, sizeof(EFI_TIME));
-
-	/* Negative Unix time values are not supported */
-	if (t < 1)
-		return;
-
-	/* Clear nanoseconds */
-	Time->Nanosecond = 0;
-
-	/* Retrieve hours, minutes and seconds */
-	Time->Second = t % 60;
-	t /= 60;
-	Time->Minute = t % 60;
-	t /= 60;
-	Time->Hour = t % 24;
-	t /= 24;
-
-	/* Convert Unix time to date */
-	a = (UINT32)((4 * t + 102032) / 146097 + 15);
-	b = (UINT32)(t + 2442113 + a - (a / 4));
-	c = (20 * b - 2442) / 7305;
-	d = b - 365 * c - (c / 4);
-	e = d * 1000 / 30601;
-	f = d - e * 30 - e * 601 / 1000;
-
-	/* January and February are counted as months 13 and 14 of the previous year */
-	if (e <= 13) {
-		c -= 4716;
-		e -= 1;
-	} else {
-		c -= 4715;
-		e -= 13;
-	}
-
-	/* Retrieve year, month and day */
-	Time->Year = c;
-	Time->Month = e;
-	Time->Day = f;
-}
+#define PrintErrno()    PrintError(L"%a failed: %a\n", __FUNCTION__, strerror(errno))
+#define IS_DIR(ni)      (((ntfs_inode*)(ni))->mrec->flags & MFT_RECORD_IS_DIRECTORY)
 
 /* Compute an EFI_TIME representation of an ntfs_time field */
 VOID
@@ -111,7 +66,7 @@ NtfsGetEfiTime(EFI_NTFS_FILE* File, EFI_TIME* Time, INTN Type)
 		}
 	}
 
-	ConvertUnixTimeToEfiTime(NTFS_TO_UNIX_TIME(time), Time);
+	UnixTimeToEfiTime(NTFS_TO_UNIX_TIME(time), Time);
 }
 
 VOID
@@ -331,9 +286,9 @@ NtfsSetInfo(EFI_FILE_INFO* Info, VOID* NtfsVolume, CONST UINT64 MRef, BOOLEAN Is
 		return EFI_NOT_FOUND;
 
 	Info->FileSize = ni->data_size;
-	ConvertUnixTimeToEfiTime(NTFS_TO_UNIX_TIME(ni->creation_time), &Info->CreateTime);
-	ConvertUnixTimeToEfiTime(NTFS_TO_UNIX_TIME(ni->last_access_time), &Info->LastAccessTime);
-	ConvertUnixTimeToEfiTime(NTFS_TO_UNIX_TIME(ni->last_data_change_time), &Info->ModificationTime);
+	UnixTimeToEfiTime(NTFS_TO_UNIX_TIME(ni->creation_time), &Info->CreateTime);
+	UnixTimeToEfiTime(NTFS_TO_UNIX_TIME(ni->last_access_time), &Info->LastAccessTime);
+	UnixTimeToEfiTime(NTFS_TO_UNIX_TIME(ni->last_data_change_time), &Info->ModificationTime);
 
 	Info->Attribute = 0;
 	if (IsDir)

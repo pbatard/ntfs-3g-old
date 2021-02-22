@@ -217,10 +217,10 @@
     <ClCompile Include="..\libntfs-3g\logging.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\libntfs-3g\compat_uefi.c">
+    <ClCompile Include="..\libntfs-3g\uefi_io.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\libntfs-3g\uefi_io.c">
+    <ClCompile Include="..\libntfs-3g\uefi_compat.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

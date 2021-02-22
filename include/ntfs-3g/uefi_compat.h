@@ -259,13 +259,14 @@ static __inline__ int read(int fildes, void* buf, size_t nbyte)
  * Declaration of the standard UEFI AsciiVSPrint() and AsciiPrint() calls per:
  * https://github.com/tianocore/edk2/blob/master/MdePkg/Include/Library/PrintLib.h
  */
-extern UINTN EFIAPI AsciiVSPrint(CHAR8 *StartOfBuffer, UINTN BufferSize,
+UINTN EFIAPI AsciiVSPrint(CHAR8 *StartOfBuffer, UINTN BufferSize,
                                  CONST CHAR8 *FormatString, VA_LIST Marker);
-extern UINTN EFIAPI AsciiPrint(const CHAR8 *Format, ...);
+UINTN EFIAPI AsciiPrint(const CHAR8 *Format, ...);
 
-/*
- * Function calls that are provided in compat_uefi.c
- */
+/* Function call provided in support.c */
+time_t EfiTimeToUnixTime(EFI_TIME* Time);
+
+/* Function call provided in compat_uefi.c */
 int clock_gettime(clockid_t clk_id, struct timespec* now);
 
 /*

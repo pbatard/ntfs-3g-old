@@ -1,4 +1,4 @@
-/* logging.c - EFI logging */
+/* logging.c - UEFI logging */
 /*
  *  Copyright © 2014-2021 Pete Batard <pete@akeo.ie>
  *
@@ -18,13 +18,8 @@
 
 #include "driver.h"
 #include "bridge.h"
-
-/* Not defined in gnu-efi yet */
-#define SHELL_VARIABLE_GUID { \
-	0x158def5a, 0xf656, 0x419c, { 0xb0, 0x27, 0x7a, 0x31, 0x92, 0xc0, 0x79, 0xd2 } \
-}
-extern EFI_GUID gShellVariableGuid;
-EFI_GUID ShellVariable = SHELL_VARIABLE_GUID;
+#include "uefi_logging.h"
+#include "uefi_support.h"
 
 static UINTN EFIAPI PrintNone(IN CONST CHAR16 *fmt, ... ) { return 0; }
 Print_t PrintError = PrintNone;
@@ -36,9 +31,6 @@ Print_t* PrintTable[] = { &PrintError, &PrintWarning, &PrintInfo,
 		&PrintDebug, &PrintExtra };
 
 /* Global driver verbosity level */
-#if !defined(DEFAULT_LOGLEVEL)
-#define DEFAULT_LOGLEVEL FS_LOGLEVEL_NONE
-#endif
 UINTN LogLevel = DEFAULT_LOGLEVEL;
 
 /**
@@ -66,6 +58,7 @@ PrintStatus(EFI_STATUS Status)
 VOID
 SetLogging(VOID)
 {
+	EFI_GUID ShellVariable = SHELL_VARIABLE_GUID;
 	EFI_STATUS Status;
 	CHAR16 LogVar[4] = { 0 };
 	UINTN i, LogVarSize = sizeof(LogVar);

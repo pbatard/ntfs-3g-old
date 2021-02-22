@@ -20,30 +20,15 @@
 
 #include "driver.h"
 #include "bridge.h"
+#include "uefi_logging.h"
+#include "uefi_support.h"
 
-/* Structure that is used with DirHook */
+/* Structure used with DirHook */
 typedef struct {
 	INTN           Index;
 	EFI_NTFS_FILE* Parent;
 	EFI_FILE_INFO* Info;
 } DIR_DATA;
-
-static VOID PrintGuid(EFI_GUID* Guid)
-{
-	Print(L"%08x-%04x-%04x-%02x%02x-%02x%02x%02x%02x%02x%02x\n",
-		Guid->Data1,
-		Guid->Data2,
-		Guid->Data3,
-		Guid->Data4[0],
-		Guid->Data4[1],
-		Guid->Data4[2],
-		Guid->Data4[3],
-		Guid->Data4[4],
-		Guid->Data4[5],
-		Guid->Data4[6],
-		Guid->Data4[7]
-	);
-}
 
 /**
  * Open file
@@ -229,8 +214,8 @@ FileDelete(EFI_FILE_HANDLE This)
  * Process directory entries
  */
 static INT32 DirHook(VOID* Data, CONST CHAR16* Name,
-	CONST INT32 NameLen, CONST INT32 NameType, CONST int64_t Pos,
-	CONST uint64_t MRef, CONST UINT32 DtType)
+	CONST INT32 NameLen, CONST INT32 NameType, CONST INT64_T Pos,
+	CONST UINT64_T MRef, CONST UINT32 DtType)
 {
 	EFI_STATUS Status;
 	DIR_DATA* HookData = (DIR_DATA*)Data;

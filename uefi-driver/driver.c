@@ -19,6 +19,8 @@
  */
 
 #include "driver.h"
+#include "uefi_logging.h"
+#include "uefi_support.h"
 
 #if defined(__MAKEWITH_GNUEFI)
 /* Designate the driver entrypoint */
