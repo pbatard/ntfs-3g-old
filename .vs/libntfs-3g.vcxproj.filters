@@ -122,10 +122,10 @@
     <ClInclude Include="..\include\ntfs-3g\xattrs.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\include\ntfs-3g\compat_uefi.h">
+    <ClInclude Include="..\include\ntfs-3g\device_io.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\include\ntfs-3g\device_io.h">
+    <ClInclude Include="..\include\ntfs-3g\uefi_compat.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

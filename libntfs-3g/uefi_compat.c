@@ -25,6 +25,7 @@
 #include "uefi_support.h"
 
 #ifdef __MAKEWITH_GNUEFI
+
 #include <efi.h>
 #include <efilib.h>
 
@@ -389,8 +390,6 @@ char* strerror(int errnum)
 		return default_message;
 	}
 }
-
-
 
 /*
  * Returns the current time in a timespec struct.

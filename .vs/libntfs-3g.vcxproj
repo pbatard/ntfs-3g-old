@@ -43,7 +43,6 @@
     <ClInclude Include="..\include\ntfs-3g\cache.h" />
     <ClInclude Include="..\include\ntfs-3g\collate.h" />
     <ClInclude Include="..\include\ntfs-3g\compat.h" />
-    <ClInclude Include="..\include\ntfs-3g\compat_uefi.h" />
     <ClInclude Include="..\include\ntfs-3g\compress.h" />
     <ClInclude Include="..\include\ntfs-3g\debug.h" />
     <ClInclude Include="..\include\ntfs-3g\device.h" />
@@ -71,6 +70,7 @@
     <ClInclude Include="..\include\ntfs-3g\security.h" />
     <ClInclude Include="..\include\ntfs-3g\support.h" />
     <ClInclude Include="..\include\ntfs-3g\types.h" />
+    <ClInclude Include="..\include\ntfs-3g\uefi_compat.h" />
     <ClInclude Include="..\include\ntfs-3g\unistr.h" />
     <ClInclude Include="..\include\ntfs-3g\volume.h" />
     <ClInclude Include="..\include\ntfs-3g\xattrs.h" />
@@ -213,8 +213,7 @@
       <BasicRuntimeChecks>Default</BasicRuntimeChecks>
       <BufferSecurityCheck>false</BufferSecurityCheck>
       <AdditionalOptions>/Oi- %(AdditionalOptions)</AdditionalOptions>
-      <DisableSpecificWarnings>
-      </DisableSpecificWarnings>
+      <DisableSpecificWarnings>4047;4146;4244;4267;4309;28251</DisableSpecificWarnings>
       <AdditionalIncludeDirectories>$(SolutionDir)\include\ntfs-3g;$(SolutionDir)\include\uefi-driver;$(SolutionDir)\gnu-efi\inc;</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
@@ -236,8 +235,7 @@
       <BasicRuntimeChecks>Default</BasicRuntimeChecks>
       <BufferSecurityCheck>false</BufferSecurityCheck>
       <AdditionalOptions>/Oi- %(AdditionalOptions)</AdditionalOptions>
-      <DisableSpecificWarnings>
-      </DisableSpecificWarnings>
+      <DisableSpecificWarnings>4047;4146;4244;4267;4309;28251</DisableSpecificWarnings>
       <AdditionalIncludeDirectories>$(SolutionDir)\include\ntfs-3g;$(SolutionDir)\include\uefi-driver;$(SolutionDir)\gnu-efi\inc;</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
@@ -259,8 +257,7 @@
       <BasicRuntimeChecks>Default</BasicRuntimeChecks>
       <BufferSecurityCheck>false</BufferSecurityCheck>
       <AdditionalOptions>/Oi- %(AdditionalOptions)</AdditionalOptions>
-      <DisableSpecificWarnings>
-      </DisableSpecificWarnings>
+      <DisableSpecificWarnings>4047;4146;4244;4267;4309;28251</DisableSpecificWarnings>
       <AdditionalIncludeDirectories>$(SolutionDir)\include\ntfs-3g;$(SolutionDir)\include\uefi-driver;$(SolutionDir)\gnu-efi\inc;</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
@@ -282,8 +279,7 @@
       <BasicRuntimeChecks>Default</BasicRuntimeChecks>
       <BufferSecurityCheck>false</BufferSecurityCheck>
       <AdditionalOptions>/Oi- %(AdditionalOptions)</AdditionalOptions>
-      <DisableSpecificWarnings>
-      </DisableSpecificWarnings>
+      <DisableSpecificWarnings>4047;4146;4244;4267;4309;28251</DisableSpecificWarnings>
       <AdditionalIncludeDirectories>$(SolutionDir)\include\ntfs-3g;$(SolutionDir)\include\uefi-driver;$(SolutionDir)\gnu-efi\inc;</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
@@ -305,8 +301,7 @@
       <BufferSecurityCheck>false</BufferSecurityCheck>
       <AdditionalOptions>/Oi- %(AdditionalOptions)</AdditionalOptions>
       <Optimization>MinSpace</Optimization>
-      <DisableSpecificWarnings>
-      </DisableSpecificWarnings>
+      <DisableSpecificWarnings>4047;4146;4244;4267;4309;28251</DisableSpecificWarnings>
       <AdditionalIncludeDirectories>$(SolutionDir)\include\ntfs-3g;$(SolutionDir)\include\uefi-driver;$(SolutionDir)\gnu-efi\inc;</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
@@ -331,8 +326,7 @@
       <BufferSecurityCheck>false</BufferSecurityCheck>
       <AdditionalOptions>/Oi- %(AdditionalOptions)</AdditionalOptions>
       <Optimization>MinSpace</Optimization>
-      <DisableSpecificWarnings>
-      </DisableSpecificWarnings>
+      <DisableSpecificWarnings>4047;4146;4244;4267;4309;28251</DisableSpecificWarnings>
       <AdditionalIncludeDirectories>$(SolutionDir)\include\ntfs-3g;$(SolutionDir)\include\uefi-driver;$(SolutionDir)\gnu-efi\inc;</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
@@ -357,8 +351,7 @@
       <BufferSecurityCheck>false</BufferSecurityCheck>
       <AdditionalOptions>/Oi- %(AdditionalOptions)</AdditionalOptions>
       <Optimization>MinSpace</Optimization>
-      <DisableSpecificWarnings>
-      </DisableSpecificWarnings>
+      <DisableSpecificWarnings>4047;4146;4244;4267;4309;28251</DisableSpecificWarnings>
       <AdditionalIncludeDirectories>$(SolutionDir)\include\ntfs-3g;$(SolutionDir)\include\uefi-driver;$(SolutionDir)\gnu-efi\inc;</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
@@ -383,8 +376,7 @@
       <BufferSecurityCheck>false</BufferSecurityCheck>
       <AdditionalOptions>/Oi- %(AdditionalOptions)</AdditionalOptions>
       <Optimization>MinSpace</Optimization>
-      <DisableSpecificWarnings>
-      </DisableSpecificWarnings>
+      <DisableSpecificWarnings>4047;4146;4244;4267;4309;28251</DisableSpecificWarnings>
       <AdditionalIncludeDirectories>$(SolutionDir)\include\ntfs-3g;$(SolutionDir)\include\uefi-driver;$(SolutionDir)\gnu-efi\inc;</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>

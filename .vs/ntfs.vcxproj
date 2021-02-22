@@ -188,6 +188,7 @@
       <BufferSecurityCheck>false</BufferSecurityCheck>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <AdditionalOptions>/Oi- %(AdditionalOptions)</AdditionalOptions>
+      <DisableSpecificWarnings>4244;4309</DisableSpecificWarnings>
     </ClCompile>
     <Lib>
       <SubSystem>EFI Application</SubSystem>
@@ -217,6 +218,7 @@
       <BufferSecurityCheck>false</BufferSecurityCheck>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <AdditionalOptions>/Oi- %(AdditionalOptions)</AdditionalOptions>
+      <DisableSpecificWarnings>4244;4309</DisableSpecificWarnings>
     </ClCompile>
     <Lib>
       <SubSystem>EFI Application</SubSystem>
@@ -245,6 +247,7 @@
       <BufferSecurityCheck>false</BufferSecurityCheck>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <AdditionalOptions>/Oi- %(AdditionalOptions)</AdditionalOptions>
+      <DisableSpecificWarnings>4244;4309</DisableSpecificWarnings>
     </ClCompile>
     <Lib>
       <SubSystem>EFI Application</SubSystem>
@@ -274,6 +277,7 @@
       <BufferSecurityCheck>false</BufferSecurityCheck>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <AdditionalOptions>/Oi- %(AdditionalOptions)</AdditionalOptions>
+      <DisableSpecificWarnings>4244;4309</DisableSpecificWarnings>
     </ClCompile>
     <Lib>
       <SubSystem>EFI Application</SubSystem>
@@ -301,6 +305,7 @@
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <AdditionalOptions>/Oi- %(AdditionalOptions)</AdditionalOptions>
       <Optimization>MinSpace</Optimization>
+      <DisableSpecificWarnings>4244;4309</DisableSpecificWarnings>
     </ClCompile>
     <Lib>
       <SubSystem>EFI Application</SubSystem>
@@ -332,6 +337,7 @@
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <AdditionalOptions>/Oi- %(AdditionalOptions)</AdditionalOptions>
       <Optimization>MinSpace</Optimization>
+      <DisableSpecificWarnings>4244;4309</DisableSpecificWarnings>
     </ClCompile>
     <Lib>
       <SubSystem>EFI Application</SubSystem>
@@ -361,6 +367,7 @@
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <AdditionalOptions>/Oi- %(AdditionalOptions)</AdditionalOptions>
       <Optimization>MinSpace</Optimization>
+      <DisableSpecificWarnings>4244;4309</DisableSpecificWarnings>
     </ClCompile>
     <Lib>
       <SubSystem>EFI Application</SubSystem>
@@ -392,6 +399,7 @@
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <Optimization>MinSpace</Optimization>
       <AdditionalOptions>/Oi- %(AdditionalOptions)</AdditionalOptions>
+      <DisableSpecificWarnings>4244;4309</DisableSpecificWarnings>
     </ClCompile>
     <Lib>
       <SubSystem>EFI Application</SubSystem>

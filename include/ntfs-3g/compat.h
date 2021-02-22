@@ -62,15 +62,6 @@
 
 #ifdef _MSC_VER
 
- /* Disable some MSVC warnings */
-#define _CRT_SECURE_NO_WARNINGS
-#pragma warning(disable: 4047)
-#pragma warning(disable: 4146)
-#pragma warning(disable: 4244)
-#pragma warning(disable: 4267)
-#pragma warning(disable: 4309)
-#pragma warning(disable: 4312)
-
 /* Define the _Static_assert() macro as required */
 #if (_MSC_VER >= 1900)	/* VS2015 or later */
 #define _Static_assert static_assert

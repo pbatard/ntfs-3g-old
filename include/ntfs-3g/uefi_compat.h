@@ -51,48 +51,48 @@
 #include <Base.h>
 #endif
 
-#define HAVE_ERRNO_H 1
-#define HAVE_CLOCK_GETTIME 1
-#define HAVE_INTTYPES_H 1
-#define HAVE_INTTYPES_H 1
-#define HAVE_LIMITS_H 1
-#define HAVE_STDARG_H 1
-#define HAVE_STDBOOL_H 1
-#define HAVE_STDDEF_H 1
-#define HAVE_STDINT_H 1
-#define HAVE_STDIO_H 1
-#define HAVE_STDLIB_H 1
-#define HAVE_SYS_STAT_H 1
-#define HAVE_SYS_TYPES_H 1
-#define HAVE_TIME_H 1
-#define HAVE_WCHAR_H 1
+#define HAVE_ERRNO_H        1
+#define HAVE_CLOCK_GETTIME  1
+#define HAVE_INTTYPES_H     1
+#define HAVE_INTTYPES_H     1
+#define HAVE_LIMITS_H       1
+#define HAVE_STDARG_H       1
+#define HAVE_STDBOOL_H      1
+#define HAVE_STDDEF_H       1
+#define HAVE_STDINT_H       1
+#define HAVE_STDIO_H        1
+#define HAVE_STDLIB_H       1
+#define HAVE_SYS_STAT_H     1
+#define HAVE_SYS_TYPES_H    1
+#define HAVE_TIME_H         1
+#define HAVE_WCHAR_H        1
 
 /* Disable reparse plugins */
-#define DISABLE_PLUGINS 1
+#define DISABLE_PLUGINS     1
 
 #if defined(DEBUG)
-#define ENABLE_DEBUG 1
+#define ENABLE_DEBUG        1
 #endif
 
 /* Force UTF-8 always */
-#define FORCE_UTF8 1
+#define FORCE_UTF8          1
 
 /* Don't update /etc/mtab */
-#define IGNORE_MTAB 1
+#define IGNORE_MTAB         1
 
 /* Enable GNU extensions on systems that have them. */
 #ifndef _GNU_SOURCE
-#define _GNU_SOURCE 1
+#define _GNU_SOURCE         1
 #endif
 
 /* All UEFI environments are little-endian */
-#define WORDS_LITTLEENDIAN 1
+#define WORDS_LITTLEENDIAN  1
 
 /* system extended attributes mappings */
 /* #undef XATTR_MAPPINGS */
 
 /* Number of bits in a file offset, on hosts where this is settable. */
-#define _FILE_OFFSET_BITS 64
+#define _FILE_OFFSET_BITS   64
 
 /* Define to `__inline__' or `__inline' if that's what the C compiler
    calls it, or to nothing if 'inline' is not supported under any name.  */
@@ -108,7 +108,7 @@ typedef unsigned long  pid_t;
 typedef unsigned short mode_t;
 typedef uint32_t       clockid_t;
 #ifndef __inline__
-#define __inline__ __inline
+#define __inline__     __inline
 #endif
 #endif /* _MSC_VER */
 
@@ -133,100 +133,99 @@ struct passwd {
 };
 
 #ifndef O_RDONLY
-#define O_RDONLY		0
+#define O_RDONLY        0
 #endif
 #ifndef O_WRONLY
-#define O_WRONLY		1
+#define O_WRONLY        1
 #endif
 #ifndef O_RDWR
-#define O_RDWR			2
+#define O_RDWR          2
 #endif
 
 #ifndef S_IXOTH
-#define S_IXOTH			00000001
+#define S_IXOTH         00000001
 #endif
 #ifndef S_IWOTH
-#define S_IWOTH			00000002
+#define S_IWOTH         00000002
 #endif
 #ifndef S_IROTH
-#define S_IROTH			00000004
+#define S_IROTH         00000004
 #endif
 #ifndef S_IXGRP
-#define S_IXGRP			00000010
+#define S_IXGRP         00000010
 #endif
 #ifndef S_IWGRP
-#define S_IWGRP			00000020
+#define S_IWGRP         00000020
 #endif
 #ifndef S_IRGRP
-#define S_IRGRP			00000040
+#define S_IRGRP         00000040
 #endif
 #ifndef S_IXUSR
-#define S_IXUSR			00000100
+#define S_IXUSR         00000100
 #endif
 #ifndef S_IWUSR
-#define S_IWUSR			00000200
+#define S_IWUSR         00000200
 #endif
 #ifndef S_IRUSR
-#define S_IRUSR			00000400
+#define S_IRUSR         00000400
 #endif
 #ifndef S_ISVTX
-#define S_ISVTX			00001000
+#define S_ISVTX         00001000
 #endif
 #ifndef S_ISGID
-#define S_ISGID			00002000
+#define S_ISGID         00002000
 #endif
 #ifndef S_ISUID
-#define S_ISUID			00004000
+#define S_ISUID         00004000
 #endif
 #ifndef S_IFBLK
-#define S_IFBLK			00060000
+#define S_IFBLK         00060000
 #endif
 #ifndef S_IFIFO
-#define S_IFIFO			00010000
+#define S_IFIFO         00010000
 #endif
 #ifndef S_IFLNK
-#define S_IFLNK			00120000
+#define S_IFLNK         00120000
 #endif
 #ifndef S_IFSOCK
-#define S_IFSOCK		00140000
+#define S_IFSOCK        00140000
 #endif
 #ifndef S_ISDIR
-#define S_ISDIR(m)		(((m) & S_IFMT) == S_IFDIR)
+#define S_ISDIR(m)      (((m) & S_IFMT) == S_IFDIR)
 #endif
 #ifndef S_ISLNK
-#define S_ISLNK(m)		(((m) & S_IFMT) == S_IFLNK)
+#define S_ISLNK(m)      (((m) & S_IFMT) == S_IFLNK)
 #endif
 #ifndef S_ISREG
-#define S_ISREG(m)		(((m) & S_IFMT) == S_IFREG)
+#define S_ISREG(m)      (((m) & S_IFMT) == S_IFREG)
 #endif
 #ifndef S_ISCHR
-#define S_ISCHR(m)		(((m) & S_IFMT) == S_IFCHR)
+#define S_ISCHR(m)      (((m) & S_IFMT) == S_IFCHR)
 #endif
 #ifndef S_ISBLK
-#define S_ISBLK(m)		(((m) & S_IFMT) == S_IFBLK)
+#define S_ISBLK(m)      (((m) & S_IFMT) == S_IFBLK)
 #endif
 
 #ifndef CLOCK_REALTIME
-#define CLOCK_REALTIME	0
+#define CLOCK_REALTIME  0
 #endif
 
 /*
  * For a UEFI driver, we can hardcode these.
  */
-#define getuid()    0
-#define getgid()    0
-#define getpid()    1
-#define getgrgid(x) NULL
-#define getpwuid(x) NULL
-#define major(x)    0
-#define minor(x)    0
+#define getuid()        0
+#define getgid()        0
+#define getpid()        1
+#define getgrgid(x)     NULL
+#define getpwuid(x)     NULL
+#define major(x)        0
+#define minor(x)        0
 
 /*
  * The following calls are only referenced when creating a
- * file system, which we never do in a UEFI driver. Therefore
- * we can harcode the return value to 0.
+ * file system, which we'll never do with the UEFI driver.
  */
-#define random()    0
+#define random()        0
 #define srandom(x)
 
 /*
@@ -268,14 +267,6 @@ time_t EfiTimeToUnixTime(EFI_TIME* Time);
 
 /* Function call provided in compat_uefi.c */
 int clock_gettime(clockid_t clk_id, struct timespec* now);
-
-/*
- * MSVC will complain about the memory function definitions not being
- * annotated like their CRT prototype unless we silence the following.
- */
-#ifdef _MSC_VER
-#pragma warning(disable: 28251)
-#endif
 
 /*
  * Eventually, we should prefix all those with ntfs_ and switch the
