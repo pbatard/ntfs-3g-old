@@ -79,14 +79,30 @@ int ffs(int i)
 #endif
 }
 
+/*
+ * Memory allocation calls that hook into the standard UEFI
+ * allocation ones. Note that, in order to be able to use
+ * UEFI's ReallocatePool(), we must keep track of the allocated
+ * size, which we store as a size_t before the effective payload.
+ */
 void* malloc(size_t size)
 {
-	return AllocatePool(size);
+	/* Keep track of the allocated size for realloc */
+	size_t* ptr = AllocatePool(size + sizeof(size_t));
+	if (ptr == NULL)
+		return NULL;
+	ptr[0] = size;
+	return &ptr[1];
 }
 
 void* calloc(size_t nmemb, size_t size)
 {
-	return AllocateZeroPool(size * nmemb);
+	/* Keep track of the allocated size for realloc */
+	size_t* ptr = AllocateZeroPool(size * nmemb + sizeof(size_t));
+	if (ptr == NULL)
+		return NULL;
+	ptr[0] = size;
+	return &ptr[1];
 }
 
 void* realloc(void* p, size_t new_size)
@@ -94,6 +110,7 @@ void* realloc(void* p, size_t new_size)
 	size_t* ptr = (size_t*)p;
 
 	if (ptr != NULL) {
+		/* Access the previous size, which was stored in malloc/calloc */
 		ptr = &ptr[-1];
 #ifdef __MAKEWITH_GNUEFI
 		ptr = ReallocatePool(ptr, (UINTN)*ptr, (UINTN)(new_size + sizeof(size_t)));
@@ -106,9 +123,16 @@ void* realloc(void* p, size_t new_size)
 	return ptr;
 }
 
+void free(void* p)
+{
+	size_t* ptr = (size_t*)p;
+	if (p != NULL)
+		FreePool(&ptr[-1]);
+}
+
 /*
- * Depending on the compiler, the arch, and the toolchain, these
- * function may or may not need to be provided...
+ * Depending on the compiler, the arch, and the toolchain,
+ * these function may or may not need to be provided...
  */
 #ifndef USE_COMPILER_INTRINSICS_LIB
 #ifndef __MAKEWITH_GNUEFI
@@ -137,11 +161,6 @@ int memcmp(const void* s1, const void* s2, size_t n)
 	return (int)CompareMem(s1, s2, n);
 }
 #endif /* USE_COMPILER_INTRINSICS_LIB */
-
-void free(void* a)
-{
-	FreePool(a);
-}
 
 /* TODO: Secure all these string functions */
 int atoi(const char* c)
