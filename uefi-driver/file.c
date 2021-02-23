@@ -55,13 +55,19 @@ FSInstall(EFI_FS* This, EFI_HANDLE ControllerHandle)
 
 	PrintInfo(L"FSInstall: %s\n", This->DevicePathString);
 
-	/* TODO: Call on ntfs_mount() */
+	/* Mount the NTFS volume */
+	Status = NtfsMount(This);
+	if (EFI_ERROR(Status)) {
+		PrintStatusError(Status, L"Could not mount NTFS volume");
+		return Status;
+	}
 
 	/* Initialize the root handle */
 	This->RootFile = NULL;
 	Status = NtfsCreateFile(&This->RootFile, This);
 	if (EFI_ERROR(Status)) {
 		PrintStatusError(Status, L"Could not create root file");
+		NtfsUnmount(This);
 		return Status;
 	}
 
@@ -76,6 +82,7 @@ FSInstall(EFI_FS* This, EFI_HANDLE ControllerHandle)
 		Status = EFI_OUT_OF_RESOURCES;
 		PrintStatusError(Status, L"Could not allocate root file name");
 		NtfsDestroyFile(This->RootFile);
+		NtfsUnmount(This);
 		return Status;
 	}
 	This->RootFile->Path[0] = PATH_CHAR;
@@ -89,6 +96,7 @@ FSInstall(EFI_FS* This, EFI_HANDLE ControllerHandle)
 	if (EFI_ERROR(Status)) {
 		PrintStatusError(Status, L"Could not install simple file system protocol");
 		NtfsDestroyFile(This->RootFile);
+		NtfsUnmount(This);
 		return Status;
 	}
 
@@ -99,11 +107,15 @@ FSInstall(EFI_FS* This, EFI_HANDLE ControllerHandle)
 VOID
 FSUninstall(EFI_FS* This, EFI_HANDLE ControllerHandle)
 {
+	EFI_STATUS Status;
+
 	PrintInfo(L"FSUninstall: %s\n", This->DevicePathString);
 
 	gBS->UninstallMultipleProtocolInterfaces(ControllerHandle,
 		&gEfiSimpleFileSystemProtocolGuid, &This->FileIoInterface,
 		NULL);
 
-	/* TODO: Call on ntfs_umount() */
+	Status = NtfsUnmount(This);
+	if (EFI_ERROR(Status))
+		PrintStatusError(Status, L"Could not unmount NTFS volume");
 }

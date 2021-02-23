@@ -21,5 +21,7 @@
 #include "driver.h"
 
 VOID NtfsSetLogger(UINTN LogLevel);
+EFI_STATUS NtfsMount(EFI_FS* FileSystem);
+EFI_STATUS NtfsUnmount(EFI_FS* FileSystem);
 EFI_STATUS NtfsCreateFile(EFI_NTFS_FILE** File, EFI_FS* FileSystem);
 VOID NtfsDestroyFile(EFI_NTFS_FILE* File);

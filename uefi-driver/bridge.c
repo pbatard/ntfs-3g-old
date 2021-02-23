@@ -17,6 +17,8 @@
  */
 
 #include "compat.h"
+#include "volume.h"
+#include "unistr.h"
 #include "logging.h"
 
 #include "driver.h"
@@ -45,6 +47,52 @@ NtfsSetLogger(UINTN Level)
 		levels |= NTFS_LOG_LEVEL_TRACE;
 
 	ntfs_log_set_levels(levels);
+}
+
+EFI_STATUS
+NtfsMount(EFI_FS* FileSystem)
+{
+	ntfs_volume* vol = NULL;
+	ntfs_mount_flags flags = NTFS_MNT_EXCLUSIVE | NTFS_MNT_IGNORE_HIBERFILE | NTFS_MNT_MAY_RDONLY;
+	CHAR8* DevName = NULL;
+
+#ifdef FORCE_READONLY
+	flags |= NTFS_MNT_RDONLY;
+#endif
+
+	/* ntfs_ucstombs() can be used to convert to UTF-8 */
+	ntfs_ucstombs(FileSystem->DevicePathString,
+		SafeStrLen(FileSystem->DevicePathString), &DevName, 0);
+	if (DevName == NULL)
+		return EFI_OUT_OF_RESOURCES;
+
+	/* Insert this filesystem in our list so that ntfs_mount() can locate it */
+	InsertTailList(&FsListHead, (LIST_ENTRY*)FileSystem);
+
+	ntfs_log_set_handler(ntfs_log_handler_uefi);
+
+	vol = ntfs_mount(DevName, flags);
+	FreePool(DevName);
+	if (vol == NULL) {
+		RemoveEntryList((LIST_ENTRY*)FileSystem);
+		return EFI_NOT_FOUND;
+	}
+	FileSystem->NtfsVolume = vol;
+	ntfs_mbstoucs(vol->vol_name, &FileSystem->NtfsVolumeLabel);
+
+	return EFI_SUCCESS;
+}
+
+EFI_STATUS
+NtfsUnmount(EFI_FS* FileSystem)
+{
+	ntfs_umount(FileSystem->NtfsVolume, FALSE);
+	free(FileSystem->NtfsVolumeLabel);
+	FileSystem->NtfsVolumeLabel = NULL;
+
+	RemoveEntryList((LIST_ENTRY*)FileSystem);
+
+	return EFI_SUCCESS;
 }
 
 EFI_STATUS
