@@ -98,6 +98,7 @@ typedef struct _EFI_FS {
 	CHAR16                          *DevicePathString;
 	VOID                            *NtfsVolume;
 	CHAR16                          *NtfsVolumeLabel;
+	INT64                           Offset;
 } EFI_FS;
 
 /* The top of our file system instances list */
