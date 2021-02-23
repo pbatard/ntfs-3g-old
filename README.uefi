@@ -21,7 +21,25 @@ For instance, to compile for ARM64, you would need to also issue:
 
 export GCC5_AARCH64_PREFIX=aarch64-linux-gnu-
 
-# Windows
+# Windows / gnu-efi
+
+This assumes that you have Visual Studio 2019 installed.
+
+Add the gnu-efi submodule to the top of the ntfs-3g source directory by using
+git://git.code.sf.net/p/gnu-efi/code as the reference URL and 'gnu-efi' as the
+target directory to clone gnu-efi into. Or you can also extract any version more
+recent than 3.0.13 into a 'gnu-efi' folder at the top of the directory (be very
+mindful that compilation will not work with gnu-efi 3.0.12 or earlier).
+
+Then you should simply be able to open the VS2019 solution file and build using
+the IDE.
+
+If you have QEMU installed under C:\Program Files\qemu\ you should also be
+able to test the driver for any of the supported architectures (IA32, X64, ARM
+and ARM64). Of course building and testing for the latter requires that you
+selected the relevant C++ components during Visual Studio installation.
+
+# Windows / EDK2
 
 This assumes that you have Visual Studio 2019 and the EDK2 installed.
 For this examples, we assume that EDK2 is installed in D:\EDK2.
