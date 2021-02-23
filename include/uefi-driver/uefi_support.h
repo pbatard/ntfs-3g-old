@@ -36,6 +36,10 @@
 /* Sort out the differences between EDK2 and gnu-efi */
 #ifdef __MAKEWITH_GNUEFI
 #define UnicodeSPrint           SPrint
+#define BASE_CR                 _CR
+#define FORWARD_LINK_REF(list)  (list).Flink
+#else
+#define FORWARD_LINK_REF(list)  (list).ForwardLink
 #endif
 
 #ifndef ARRAYSIZE
