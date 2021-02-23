@@ -41,11 +41,21 @@
 #define MIN(x,y)                ((x)<(y)?(x):(y))
 #endif
 
+#ifndef PATH_MAX
+#define PATH_MAX                4096
+#endif
+
+#ifndef PATH_CHAR
+#define PATH_CHAR               L'/'
+#endif
+
+#define IS_PATH_DELIMITER(x)    (x == PATH_CHAR || x == L'\\')
+
 #define _WIDEN(s)               L ## s
 #define WIDEN(s)                _WIDEN(s)
 
 /* For safety, we set a a maximum size that strings shall not outgrow */
-#define STRING_MAX              4098
+#define STRING_MAX              (PATH_MAX + 2)
 
 /* Convenience assertion macros */
 #define FL_ASSERT(f, l, a)      if(!(a)) do { Print(L"*** ASSERT FAILED: %a(%d): %a ***\n", f, l, #a); while(1); } while(0)
@@ -54,5 +64,9 @@
 /*
  * Prototypes for the function calls provided in support.c
  */
+VOID PrintGuid(EFI_GUID* Guid);
 VOID UnixTimeToEfiTime(time_t t, EFI_TIME* Time);
 time_t EfiTimeToUnixTime(EFI_TIME* Time);
+INTN CompareDevicePaths(CONST EFI_DEVICE_PATH* dp1, CONST EFI_DEVICE_PATH* dp2);
+VOID CleanPath(CHAR16* Path);
+CHAR16* DevicePathToString(CONST EFI_DEVICE_PATH* DevicePath);
