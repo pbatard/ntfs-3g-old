@@ -42,6 +42,34 @@
 
 #endif /* __MAKEWITH_GNUEFI */
 
+static int __errno;
+
+#ifdef _MSC_VER
+int* _errno(void)
+{
+	return &__errno;
+}
+#else
+int* __errno_location(void)
+{
+	return &__errno;
+}
+#endif /* _MSC_VER */
+
+int ffs(int i)
+{
+#ifdef _MSC_VER
+	unsigned long bit = 0;
+	if (_BitScanForward(&bit, i))
+		return bit + 1;
+	else
+		return 0;
+#else
+	/* Expect a GNUC compatible built-in */
+	return __builtin_ffs(i);
+#endif /* _MSC_VER */
+}
+
 /*
  * Memory allocation calls that hook into the standard UEFI
  * allocation ones. Note that, in order to be able to use
