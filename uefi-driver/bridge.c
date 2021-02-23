@@ -46,3 +46,43 @@ NtfsSetLogger(UINTN Level)
 
 	ntfs_log_set_levels(levels);
 }
+
+EFI_STATUS
+NtfsCreateFile(EFI_NTFS_FILE** File, EFI_FS* FileSystem)
+{
+	EFI_NTFS_FILE* NewFile;
+
+	NewFile = AllocateZeroPool(sizeof(*NewFile));
+	if (NewFile == NULL)
+		return EFI_OUT_OF_RESOURCES;
+
+	/* Initialize the attributes */
+	NewFile->FileSystem = FileSystem;
+	NewFile->EfiFile.Revision = EFI_FILE_PROTOCOL_REVISION2;
+	NewFile->EfiFile.Open = FileOpen;
+	NewFile->EfiFile.Close = FileClose;
+	NewFile->EfiFile.Delete = FileDelete;
+	NewFile->EfiFile.Read = FileRead;
+	NewFile->EfiFile.Write = FileWrite;
+	NewFile->EfiFile.GetPosition = FileGetPosition;
+	NewFile->EfiFile.SetPosition = FileSetPosition;
+	NewFile->EfiFile.GetInfo = FileGetInfo;
+	NewFile->EfiFile.SetInfo = FileSetInfo;
+	NewFile->EfiFile.Flush = FileFlush;
+	NewFile->EfiFile.OpenEx = FileOpenEx;
+	NewFile->EfiFile.ReadEx = FileReadEx;
+	NewFile->EfiFile.WriteEx = FileWriteEx;
+	NewFile->EfiFile.FlushEx = FileFlushEx;
+
+	*File = NewFile;
+	return EFI_SUCCESS;
+}
+
+VOID
+NtfsDestroyFile(EFI_NTFS_FILE* File)
+{
+	if (File == NULL)
+		return;
+	FreePool(File->Path);
+	FreePool(File);
+}
