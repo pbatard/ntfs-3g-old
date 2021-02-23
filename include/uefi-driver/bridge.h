@@ -18,11 +18,8 @@
 
 #pragma once
 
-#ifdef __MAKEWITH_GNUEFI
-#include <efi.h>
-#else
-#include <Base.h>
-#include <Uefi.h>
-#endif /* __MAKEWITH_GNUEFI */
+#include "driver.h"
 
 VOID NtfsSetLogger(UINTN LogLevel);
+EFI_STATUS NtfsCreateFile(EFI_NTFS_FILE** File, EFI_FS* FileSystem);
+VOID NtfsDestroyFile(EFI_NTFS_FILE* File);
