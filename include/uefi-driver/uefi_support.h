@@ -33,6 +33,14 @@
 #endif
 #endif /* _GNU_EFI & !GNU_EFI_USE_MS_ABI */
 
+/* Sort out the differences between EDK2 and gnu-efi */
+#ifdef __MAKEWITH_GNUEFI
+#define BASE_CR                 _CR
+#define FORWARD_LINK_REF(list)  (list).Flink
+#else
+#define FORWARD_LINK_REF(list)  (list).ForwardLink
+#endif
+
 #ifndef ARRAYSIZE
 #define ARRAYSIZE(A)            (sizeof(A)/sizeof((A)[0]))
 #endif
