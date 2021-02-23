@@ -20,8 +20,19 @@
 
 #include "driver.h"
 
+/* Similar to the MREF() macro from libntfs-3g */
+#define GetInodeNumber(x)   ((UINT64)((x) & 0XFFFFFFFFFFFFULL))
+
+/* This typedef mirrors the ntfs_filldir_t one in ntfs-3g's dir.h */
+typedef INT32(*NTFS_DIRHOOK)(VOID* HookData, CONST CHAR16* Name,
+	CONST INT32 NameLen, CONST INT32 NameType, CONST INT64 Pos,
+	CONST UINT64 MRef, CONST UINT32 DtType);
+
 VOID NtfsSetLogger(UINTN LogLevel);
 EFI_STATUS NtfsMount(EFI_FS* FileSystem);
 EFI_STATUS NtfsUnmount(EFI_FS* FileSystem);
 EFI_STATUS NtfsCreateFile(EFI_NTFS_FILE** File, EFI_FS* FileSystem);
 VOID NtfsDestroyFile(EFI_NTFS_FILE* File);
+EFI_STATUS NtfsOpen(EFI_NTFS_FILE* File);
+VOID NtfsClose(EFI_NTFS_FILE* File);
+EFI_STATUS NtfsReadDir(EFI_NTFS_FILE* File, NTFS_DIRHOOK Hook, VOID* HookData);

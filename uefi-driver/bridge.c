@@ -2,6 +2,13 @@
 /*
  *  Copyright © 2021 Pete Batard <pete@akeo.ie>
  *
+ *  Parts taken from lowntfs-3g.c:
+ *  Copyright © 2005-2007 Yura Pakhuchiy
+ *  Copyright © 2005 Yuval Fledel
+ *  Copyright © 2006-2009 Szabolcs Szakacsits
+ *  Copyright © 2007-2021 Jean-Pierre Andre
+ *  Copyright © 2009 Erik Larsson
+ *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
  *  the Free Software Foundation, either version 2 of the License, or
@@ -20,11 +27,14 @@
 #include "volume.h"
 #include "unistr.h"
 #include "logging.h"
+#include "dir.h"
 
 #include "driver.h"
 #include "bridge.h"
 #include "uefi_logging.h"
 #include "uefi_support.h"
+
+#define IS_DIR(ni)      (((ntfs_inode*)(ni))->mrec->flags & MFT_RECORD_IS_DIRECTORY)
 
 /*
  * Translate a UEFI driver log level into a libntfs-3g log level.
@@ -112,7 +122,13 @@ NtfsCreateFile(EFI_NTFS_FILE** File, EFI_FS* FileSystem)
 	/* See if we are initializing the root file */
 	if (FileSystem->RootFile == NULL) {
 		FileSystem->RootFile = NewFile;
-		/* TODO: Call ntfs_inode_open() for root */
+		FileSystem->RootFile->NtfsInode = ntfs_inode_open(FileSystem->NtfsVolume, FILE_root);
+		if (FileSystem->RootFile->NtfsInode == NULL) {
+			PrintError(L"Failed to initialize ROOT!\n");
+			FreePool(NewFile);
+			FileSystem->RootFile = NULL;
+			return EFI_NOT_FOUND;
+		}
 	} else {
 		CopyMem(&NewFile->EfiFile, &FileSystem->RootFile->EfiFile, sizeof(EFI_FILE));
 	}
@@ -127,4 +143,44 @@ NtfsDestroyFile(EFI_NTFS_FILE* File)
 		return;
 	FreePool(File->Path);
 	FreePool(File);
+}
+
+EFI_STATUS
+NtfsOpen(EFI_NTFS_FILE* File)
+{
+	char* path = NULL;
+	int sz;
+
+	sz = ntfs_ucstombs(File->Path, SafeStrLen(File->Path), &path, 0);
+	if (sz <= 0) {
+		PrintError(L"Could not allocate path string\n");
+		return EFI_OUT_OF_RESOURCES;
+	}
+	File->NtfsInode = ntfs_pathname_to_inode(File->FileSystem->NtfsVolume, NULL, path);
+	free(path);
+	if (File->NtfsInode == NULL)
+		return EFI_NOT_FOUND;
+
+	File->IsDir = IS_DIR(File->NtfsInode);
+
+	return EFI_SUCCESS;
+}
+
+VOID
+NtfsClose(EFI_NTFS_FILE* File)
+{
+	ntfs_inode_close(File->NtfsInode);
+}
+
+EFI_STATUS
+NtfsReadDir(EFI_NTFS_FILE* File, NTFS_DIRHOOK Hook, VOID* HookData)
+{
+	s64 pos = 0;
+
+	if (ntfs_readdir(File->NtfsInode, &pos, HookData, Hook)) {
+		PrintError(L"%a failed: %a\n", __FUNCTION__, strerror(errno));
+		return EFI_NOT_FOUND;
+	}
+
+	return EFI_SUCCESS;
 }

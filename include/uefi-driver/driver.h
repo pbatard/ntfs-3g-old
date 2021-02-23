@@ -72,6 +72,10 @@
 #define PACKAGE_STRING              "ntfs-3g 2021.02.20"
 #endif
 
+#define MINIMUM_INFO_LENGTH         (sizeof(EFI_FILE_INFO) + PATH_MAX * sizeof(CHAR16))
+#define MINIMUM_FS_INFO_LENGTH      (sizeof(EFI_FILE_SYSTEM_INFO) + PATH_MAX * sizeof(CHAR16))
+#define IS_ROOT(File)               (File == File->FileSystem->RootFile)
+
 /* A file instance */
 typedef struct _EFI_NTFS_FILE {
 	EFI_FILE                         EfiFile;
@@ -82,6 +86,7 @@ typedef struct _EFI_NTFS_FILE {
 	CHAR16                          *Basename;
 	INTN                             RefCount;
 	struct _EFI_FS                  *FileSystem;
+	VOID                            *NtfsInode;
 } EFI_NTFS_FILE;
 
 /* A file system instance */
