@@ -62,6 +62,13 @@
 
 #ifdef _MSC_VER
 
+/* Define the _Static_assert() macro as required */
+#if (_MSC_VER >= 1900)	/* VS2015 or later */
+#define _Static_assert static_assert
+#else
+#define _Static_assert(...)
+#endif
+
 #define __inline__ __inline
 #define __attribute__(X)
 
