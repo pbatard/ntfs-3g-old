@@ -69,6 +69,18 @@
 #define PACKAGE_STRING              "ntfs-3g 2021.02.20"
 #endif
 
+/* A file instance */
+typedef struct _EFI_NTFS_FILE {
+	EFI_FILE                         EfiFile;
+	BOOLEAN                          IsDir;
+	INTN                             DirIndex;
+	INT64                            Offset;
+	CHAR16                          *Path;
+	CHAR16                          *Basename;
+	INTN                             RefCount;
+	struct _EFI_FS                  *FileSystem;
+} EFI_NTFS_FILE;
+
 /* A file system instance */
 typedef struct _EFI_FS {
 	LIST_ENTRY                      *ForwardLink;
@@ -79,4 +91,10 @@ typedef struct _EFI_FS {
 	EFI_DISK_IO2_PROTOCOL           *DiskIo2;
 	EFI_DISK_IO2_TOKEN               DiskIo2Token;
 	CHAR16                          *DevicePathString;
+	EFI_NTFS_FILE                   *RootFile;
 } EFI_FS;
+
+extern EFI_STATUS FSInstall(EFI_FS* This, EFI_HANDLE ControllerHandle);
+extern VOID FSUninstall(EFI_FS* This, EFI_HANDLE ControllerHandle);
+extern EFI_STATUS EFIAPI FileOpenVolume(EFI_SIMPLE_FILE_SYSTEM_PROTOCOL* This,
+	EFI_FILE_HANDLE* Root);

@@ -46,3 +46,37 @@ NtfsSetLogger(UINTN Level)
 
 	ntfs_log_set_levels(levels);
 }
+
+EFI_STATUS
+NtfsCreateFile(EFI_NTFS_FILE** File, EFI_FS* FileSystem)
+{
+	EFI_NTFS_FILE* NewFile;
+
+	NewFile = AllocateZeroPool(sizeof(*NewFile));
+	if (NewFile == NULL)
+		return EFI_OUT_OF_RESOURCES;
+
+	/* Initialize the attributes */
+	NewFile->FileSystem = FileSystem;
+
+	/* TODO: Do we actually need to bother with root at all? */
+
+	/* See if we are initializing the root file */
+	if (FileSystem->RootFile == NULL) {
+		FileSystem->RootFile = NewFile;
+		/* TODO: Call ntfs_inode_open() for root */
+	} else {
+		CopyMem(&NewFile->EfiFile, &FileSystem->RootFile->EfiFile, sizeof(EFI_FILE));
+	}
+	*File = NewFile;
+	return EFI_SUCCESS;
+}
+
+VOID
+NtfsDestroyFile(EFI_NTFS_FILE* File)
+{
+	if (File == NULL)
+		return;
+	FreePool(File->Path);
+	FreePool(File);
+}
