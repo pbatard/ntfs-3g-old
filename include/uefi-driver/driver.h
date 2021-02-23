@@ -68,3 +68,15 @@
 #ifndef PACKAGE_STRING
 #define PACKAGE_STRING              "ntfs-3g 2021.02.20"
 #endif
+
+/* A file system instance */
+typedef struct _EFI_FS {
+	LIST_ENTRY                      *ForwardLink;
+	EFI_SIMPLE_FILE_SYSTEM_PROTOCOL  FileIoInterface;
+	EFI_BLOCK_IO_PROTOCOL           *BlockIo;
+	EFI_BLOCK_IO2_PROTOCOL          *BlockIo2;
+	EFI_DISK_IO_PROTOCOL            *DiskIo;
+	EFI_DISK_IO2_PROTOCOL           *DiskIo2;
+	EFI_DISK_IO2_TOKEN               DiskIo2Token;
+	CHAR16                          *DevicePathString;
+} EFI_FS;
