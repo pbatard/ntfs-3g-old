@@ -73,6 +73,10 @@
 #endif
 
 #define IS_PATH_DELIMITER(x)    (x == PATH_CHAR || x == L'\\')
+
+/* For safety, we set a a maximum size that strings shall not outgrow */
+#define STRING_MAX              (PATH_MAX + 2)
+
 #define _WIDEN(s)               L ## s
 #define WIDEN(s)                _WIDEN(s)
 
@@ -125,14 +129,14 @@ static __inline VOID _SafeStrCpy(CHAR16* Destination, UINTN DestMax,
 
 /**
  * Secure string length, that asserts if the string is NULL or if
- * the length is larger than a predetermined value (here PATH_MAX + 1)
+ * the length is larger than a predetermined value (STRING_MAX)
  */
 static __inline UINTN _SafeStrLen(CHAR16* String, CONST CHAR8* File,
 	CONST UINTN Line) {
 	UINTN Len = 0;
 	FL_ASSERT(File, Line, String != NULL);
 	Len = StrLen(String);
-	FL_ASSERT(File, Line, Len <= PATH_MAX + 1);
+	FL_ASSERT(File, Line, Len < STRING_MAX);
 	return Len;
 }
 

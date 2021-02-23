@@ -162,34 +162,22 @@ int memcmp(const void* s1, const void* s2, size_t n)
 }
 #endif /* USE_COMPILER_INTRINSICS_LIB */
 
-/* TODO: Secure all these string functions */
-int atoi(const char* c)
-{
-	int value = 0;
-	int sign = 1;
-
-	if (*c == '+' || *c == '-') {
-		if (*c == '-')
-			sign = -1;
-		c++;
-	}
-
-	while ((*c >= '0') && (*c <= '9')) {
-		value *= 10;
-		value += (int)(*c - '0');
-		c++;
-	}
-
-	return value * sign;
-}
-
+/*
+ * Secure string length, that asserts if the string is NULL or if
+ * the length is larger than a predetermined value (STRING_MAX)
+ */
 size_t strlen(const char* s)
 {
+	size_t r;
+
+	FS_ASSERT(s != NULL);
 #ifdef __MAKEWITH_GNUEFI
-	return strlena(s);
+	r = strlena(s);
 #else
-	return AsciiStrLen(s);
+	r = AsciiStrnLenS(s, STRING_MAX);
 #endif
+	FS_ASSERT(r < STRING_MAX);
+	return r;
 }
 
 int strcmp(const char* s1, const char* s2)
@@ -210,27 +198,30 @@ int strncmp(const char* s1, const char* s2, size_t n)
 #endif
 }
 
-char* strcpy(char* dest, const char* src)
+char* strcpy(char* dst, const char* src)
 {
-	return memcpy(dest, src, strlen(src) + 1);
+	FS_ASSERT(dst != NULL);
+	/* strlen validates the sanity of the source */
+	return memcpy(dst, src, strlen(src) + 1);
 }
 
-#ifndef min
-#define min(x,y)                ((x)<(y)?(x):(y))
-#endif
-
-char* strncpy(char* dest, const char* src, size_t n)
+char* strncpy(char* dst, const char* src, size_t n)
 {
-	return memcpy(dest, src, min(strlen(src) + 1, n));
+	FS_ASSERT(dst != NULL);
+	/* strlen validates the sanity of the source */
+	return memcpy(dst, src, MIN(strlen(src) + 1, n));
 }
 
-char* strcat(char* dest, const char* src)
+char* strcat(char* dst, const char* src)
 {
-	return strcpy(&dest[strlen(dest)], src);
+	FS_ASSERT(dst != NULL);
+	/* strcpy validates the sanity of src and dst */
+	return strcpy(&dst[strlen(dst)], src);
 }
 
 char* strdup(const char* s)
 {
+	/* strlen validates the sanity of the source */
 	char* ret = malloc(strlen(s) + 1);
 	if (ret == NULL)
 		return NULL;
@@ -271,6 +262,7 @@ int snprintf(char* str, size_t size, const char* format, ...)
 
 char* strchr(const char* s, int c)
 {
+	FS_ASSERT(strlen(s) < STRING_MAX);
 	do {
 		if (*s == c)
 			return (char*)s;
@@ -282,6 +274,7 @@ char* strchr(const char* s, int c)
 char* strrchr(const char* s, int c)
 {
 	char* p = NULL;
+	FS_ASSERT(strlen(s) < STRING_MAX);
 	do {
 		if (*s == c)
 			p = (char*)s;
@@ -294,7 +287,11 @@ char* strstr(const char* s1, const char* s2)
 {
 	const char* p1 = s1;
 	const char* p2 = s2;
-	const char* r = *p2 == 0 ? s1 : 0;
+	const char* r;
+	
+	FS_ASSERT(strlen(s1) < STRING_MAX);
+	FS_ASSERT(strlen(s2) < STRING_MAX);
+	r = (*p2 == 0) ? s1 : 0;
 
 	while (*p1 != 0 && *p2 != 0) {
 		if (*p1 == *p2) {
@@ -315,7 +312,7 @@ char* strstr(const char* s1, const char* s2)
 		p1++;
 	}
 
-	return *p2 == 0 ? (char*)r : NULL;
+	return (*p2 == 0) ? (char*)r : NULL;
 }
 
 char* strerror(int errnum)

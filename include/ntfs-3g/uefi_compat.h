@@ -220,6 +220,8 @@ struct passwd {
 #define getpwuid(x)     NULL
 #define major(x)        0
 #define minor(x)        0
+/* atoi() is only ever used to convert uid/gid */
+#define atoi(x)         0
 
 /*
  * The following calls are only referenced when creating a
@@ -282,7 +284,6 @@ void* memset(void* s, int c, size_t n);
 void* memmove(void* dest, const void* src, size_t n);
 void  free(void* a);
 
-int   atoi(const char* s);
 size_t strlen(const char* s);
 int   strcmp(const char* s1, const char* s2);
 int   strncmp(const char* s1, const char* s2, size_t n);
