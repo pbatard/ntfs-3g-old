@@ -63,3 +63,8 @@
 #endif /* __MAKEWITH_GNUEFI */
 
 #define NTFS_MUTEX_GUID { 0xf4ed18ca, 0xcdfb, 0x40ca, { 0x97, 0xec, 0x32, 0x2a, 0x8b, 0x01, 0x4e, 0x5f } }
+
+/* Define to the full name and version of this package. */
+#ifndef PACKAGE_STRING
+#define PACKAGE_STRING              "ntfs-3g 2021.02.20"
+#endif
