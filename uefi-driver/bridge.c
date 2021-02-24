@@ -301,3 +301,16 @@ NtfsClose(EFI_NTFS_FILE* File)
 		return;
 	ntfs_inode_close(File->NtfsInode);
 }
+
+EFI_STATUS
+NtfsReadDir(EFI_NTFS_FILE* File, NTFS_DIRHOOK Hook, VOID* HookData)
+{
+	s64 pos = 0;
+
+	if (ntfs_readdir(File->NtfsInode, &pos, HookData, Hook)) {
+		PrintError(L"%a failed: %a\n", __FUNCTION__, strerror(errno));
+		return ErrnoToEfiStatus();
+	}
+
+	return EFI_SUCCESS;
+}
