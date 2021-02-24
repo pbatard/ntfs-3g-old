@@ -38,6 +38,7 @@
 #define UnicodeSPrint           SPrint
 #define BASE_CR                 _CR
 #define FORWARD_LINK_REF(list)  (list).Flink
+#define EFI_FILE_SYSTEM_VOLUME_LABEL EFI_FILE_SYSTEM_VOLUME_LABEL_INFO
 #else
 #define FORWARD_LINK_REF(list)  (list).ForwardLink
 #endif
@@ -72,6 +73,14 @@
 
 /* For safety, we set a a maximum size that strings shall not outgrow */
 #define STRING_MAX              (PATH_MAX + 2)
+
+/* Used with NtfsGetEfiTime */
+#define TIME_CREATED            0
+#define TIME_ACCESSED           1
+#define TIME_MODIFIED           2
+
+#define NTFS_TO_UNIX_TIME(t)    ((t - (NTFS_TIME_OFFSET)) / 10000000)
+#define UNIX_TO_NTFS_TIME(t)    ((t * 10000000) + NTFS_TIME_OFFSET)
 
 /* Convenience assertion macros */
 #define FL_ASSERT(f, l, a)      if(!(a)) do { Print(L"*** ASSERT FAILED: %a(%d): %a ***\n", f, l, #a); while(1); } while(0)
