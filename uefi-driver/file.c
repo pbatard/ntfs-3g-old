@@ -207,9 +207,14 @@ FileOpenVolume(EFI_SIMPLE_FILE_SYSTEM_PROTOCOL* This, EFI_FILE_HANDLE* Root)
 	EFI_NTFS_FILE* RootFile = NULL;
 	EFI_FS* FSInstance = BASE_CR(This, EFI_FS, FileIoInterface);
 
-	PrintInfo(L"OpenVolume (%s)\n", FSInstance->DevicePathString);
+	PrintInfo(L"OpenVolume: %s\n", FSInstance->DevicePathString);
 
-	/* TODO: Mount the NTFS volume */
+	/* Mount the NTFS volume */
+	Status = NtfsMount(FSInstance);
+	if (EFI_ERROR(Status)) {
+		PrintStatusError(Status, L"Could not mount NTFS volume");
+		goto out;
+	}
 
 	/* Create the root file */
 	Status = NtfsCreateFile(&RootFile, FSInstance);
@@ -218,11 +223,7 @@ FileOpenVolume(EFI_SIMPLE_FILE_SYSTEM_PROTOCOL* This, EFI_FILE_HANDLE* Root)
 		goto out;
 	}
 
-	/* TODO: Open the root file */
-	RootFile->IsRoot = TRUE;
-	RootFile->IsDir = TRUE;
-
-	/* Setup the path */
+	/* Setup the root path */
 	RootFile->Path = AllocateZeroPool(2 * sizeof(CHAR16));
 	if (RootFile->Path == NULL) {
 		Status = EFI_OUT_OF_RESOURCES;
@@ -232,6 +233,13 @@ FileOpenVolume(EFI_SIMPLE_FILE_SYSTEM_PROTOCOL* This, EFI_FILE_HANDLE* Root)
 	RootFile->Path[0] = PATH_CHAR;
 	RootFile->Basename = &RootFile->Path[1];
 
+	/* Open the root file */
+	Status = NtfsOpen(RootFile);
+	if (EFI_ERROR(Status)) {
+		PrintStatusError(Status, L"Could not open root file");
+		goto out;
+	}
+
 	/* Set the inital refcount */
 	RootFile->RefCount = 1;
 
@@ -240,8 +248,11 @@ FileOpenVolume(EFI_SIMPLE_FILE_SYSTEM_PROTOCOL* This, EFI_FILE_HANDLE* Root)
 	Status = EFI_SUCCESS;
 
 out:
-	if (EFI_ERROR(Status))
+	if (EFI_ERROR(Status)) {
+		NtfsClose(RootFile);
 		NtfsDestroyFile(RootFile);
+		NtfsUnmount(FSInstance);
+	}
 	return Status;
 }
 
