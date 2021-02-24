@@ -107,6 +107,7 @@ NtfsUnmount(EFI_FS* FileSystem)
 	free(FileSystem->NtfsVolumeLabel);
 	FileSystem->NtfsVolumeLabel = NULL;
 	FileSystem->MountCount = 0;
+	FileSystem->TotalRefCount = 0;
 
 	RemoveEntryList((LIST_ENTRY*)FileSystem);
 

@@ -72,6 +72,9 @@
 #define PACKAGE_STRING              "ntfs-3g 2021.02.20"
 #endif
 
+#define MINIMUM_INFO_LENGTH         (sizeof(EFI_FILE_INFO) + PATH_MAX * sizeof(CHAR16))
+#define MINIMUM_FS_INFO_LENGTH      (sizeof(EFI_FILE_SYSTEM_INFO) + PATH_MAX * sizeof(CHAR16))
+
 /* A file instance */
 typedef struct _EFI_NTFS_FILE {
 	EFI_FILE                         EfiFile;
@@ -99,8 +102,9 @@ typedef struct _EFI_FS {
 	CHAR16                          *DevicePathString;
 	VOID                            *NtfsVolume;
 	CHAR16                          *NtfsVolumeLabel;
-	INTN                             MountCount;
 	INT64                            Offset;
+	INTN                             MountCount;
+	INTN                             TotalRefCount;
 } EFI_FS;
 
 /* The top of our file system instances list */
