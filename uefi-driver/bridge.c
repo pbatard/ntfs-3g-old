@@ -153,22 +153,22 @@ NtfsCreateFile(EFI_NTFS_FILE** File, EFI_FS* FileSystem)
 
 	/* Initialize the attributes */
 	NewFile->FileSystem = FileSystem;
+	NewFile->EfiFile.Revision = EFI_FILE_PROTOCOL_REVISION2;
+	NewFile->EfiFile.Open = FileOpen;
+	NewFile->EfiFile.Close = FileClose;
+	NewFile->EfiFile.Delete = FileDelete;
+	NewFile->EfiFile.Read = FileRead;
+	NewFile->EfiFile.Write = FileWrite;
+	NewFile->EfiFile.GetPosition = FileGetPosition;
+	NewFile->EfiFile.SetPosition = FileSetPosition;
+	NewFile->EfiFile.GetInfo = FileGetInfo;
+	NewFile->EfiFile.SetInfo = FileSetInfo;
+	NewFile->EfiFile.Flush = FileFlush;
+	NewFile->EfiFile.OpenEx = FileOpenEx;
+	NewFile->EfiFile.ReadEx = FileReadEx;
+	NewFile->EfiFile.WriteEx = FileWriteEx;
+	NewFile->EfiFile.FlushEx = FileFlushEx;
 
-	/* TODO: Do we actually need to bother with root at all? */
-
-	/* See if we are initializing the root file */
-	if (FileSystem->RootFile == NULL) {
-		FileSystem->RootFile = NewFile;
-		FileSystem->RootFile->NtfsInode = ntfs_inode_open(FileSystem->NtfsVolume, FILE_root);
-		if (FileSystem->RootFile->NtfsInode == NULL) {
-			PrintError(L"Failed to initialize ROOT!\n");
-			FreePool(NewFile);
-			FileSystem->RootFile = NULL;
-			return EFI_NOT_FOUND;
-		}
-	} else {
-		CopyMem(&NewFile->EfiFile, &FileSystem->RootFile->EfiFile, sizeof(EFI_FILE));
-	}
 	*File = NewFile;
 	return EFI_SUCCESS;
 }
@@ -188,13 +188,19 @@ NtfsOpen(EFI_NTFS_FILE* File)
 	char* path = NULL;
 	int sz;
 
-	sz = ntfs_ucstombs(File->Path, SafeStrLen(File->Path), &path, 0);
-	if (sz <= 0) {
-		PrintError(L"Could not allocate path string\n");
-		return EFI_OUT_OF_RESOURCES;
+	/* Open root if Path is NULL, regular file or dir otherwise */
+	if (File->Path == NULL) {
+		File->NtfsInode = ntfs_inode_open(File->FileSystem->NtfsVolume, FILE_root);
+		File->IsRoot = TRUE;
+	} else {
+		sz = ntfs_ucstombs(File->Path, SafeStrLen(File->Path), &path, 0);
+		if (sz <= 0) {
+			PrintError(L"Could not allocate path string\n");
+			return EFI_OUT_OF_RESOURCES;
+		}
+		File->NtfsInode = ntfs_pathname_to_inode(File->FileSystem->NtfsVolume, NULL, path);
+		free(path);
 	}
-	File->NtfsInode = ntfs_pathname_to_inode(File->FileSystem->NtfsVolume, NULL, path);
-	free(path);
 	if (File->NtfsInode == NULL)
 		return EFI_NOT_FOUND;
 
@@ -206,6 +212,8 @@ NtfsOpen(EFI_NTFS_FILE* File)
 VOID
 NtfsClose(EFI_NTFS_FILE* File)
 {
+	if (File == NULL)
+		return;
 	ntfs_inode_close(File->NtfsInode);
 }
 
