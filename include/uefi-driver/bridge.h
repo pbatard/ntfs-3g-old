@@ -20,6 +20,11 @@
 
 #include "driver.h"
 
+/* Used with NtfsGetEfiTime */
+#define TIME_CREATED        0
+#define TIME_ACCESSED       1
+#define TIME_MODIFIED       2
+
 /* Similar to the MREF() macro from libntfs-3g */
 #define GetInodeNumber(x)   ((UINT64)((x) & 0XFFFFFFFFFFFFULL))
 
@@ -37,3 +42,10 @@ VOID NtfsDestroyFile(EFI_NTFS_FILE* File);
 EFI_STATUS NtfsOpen(EFI_NTFS_FILE* File);
 VOID NtfsClose(EFI_NTFS_FILE* File);
 EFI_STATUS NtfsReadDir(EFI_NTFS_FILE* File, NTFS_DIRHOOK Hook, VOID* HookData);
+EFI_STATUS NtfsRead(EFI_NTFS_FILE* File, VOID* Data, UINTN* Len);
+EFI_STATUS NtfsGetInfo(EFI_FILE_INFO* Info, VOID* NtfsVolume, CONST CHAR16* Path,
+	CONST UINT64 MRef, BOOLEAN IsDir);
+UINT64 NtfsGetVolumeFreeSpace(VOID* NtfsVolume);
+UINT64 NtfsGetFileSize(EFI_NTFS_FILE* File);
+UINT64 NtfsGetFileOffset(EFI_NTFS_FILE* File);
+VOID NtfsSetFileOffset(EFI_NTFS_FILE* File, UINT64 Offset);
