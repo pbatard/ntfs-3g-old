@@ -41,6 +41,13 @@
 #define FORWARD_LINK_REF(list)  (list).ForwardLink
 #endif
 
+/* Sort out some platform specifics */
+#if defined(_M_ARM64) || defined(__aarch64__) || defined (_M_X64) || defined(__x86_64__)
+#define PERCENT_P               L"%llx"
+#else
+#define PERCENT_P               L"%x"
+#endif
+
 #ifndef ARRAYSIZE
 #define ARRAYSIZE(A)            (sizeof(A)/sizeof((A)[0]))
 #endif

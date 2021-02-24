@@ -37,7 +37,113 @@ EFI_STATUS EFIAPI
 FileOpen(EFI_FILE_HANDLE This, EFI_FILE_HANDLE* New,
 	CHAR16* Name, UINT64 Mode, UINT64 Attributes)
 {
-	return EFI_UNSUPPORTED;
+	EFI_STATUS Status;
+	EFI_NTFS_FILE* File = BASE_CR(This, EFI_NTFS_FILE, EfiFile);
+	EFI_NTFS_FILE* NewFile = NULL;
+	CHAR16* Path = NULL;
+	INTN i, Len;
+
+	PrintInfo(L"Open(" PERCENT_P L"%s, \"%s\")\n", (UINTN)This,
+		File->IsRoot ? L" <ROOT>" : L"", Name);
+
+#ifdef FORCE_READONLY
+	if (Mode != EFI_FILE_MODE_READ) {
+		PrintWarning(L"File '%s' can only be opened in read-only mode\n", Name);
+		return EFI_WRITE_PROTECTED;
+	}
+#endif
+
+	/* Additional failures */
+	if ((StrCmp(Name, L"..") == 0) && File->IsRoot) {
+		PrintInfo(L"Trying to open <ROOT>'s parent\n");
+		return EFI_NOT_FOUND;
+	}
+
+	/* See if we're trying to reopen current (which the EFI Shell insists on doing) */
+	if ((*Name == 0) || (StrCmp(Name, L".") == 0)) {
+		PrintInfo(L"  Reopening %s\n", File->IsRoot ? L"<ROOT>" : File->Path);
+		File->RefCount++;
+		File->FileSystem->TotalRefCount++;
+		PrintExtra(L"TotalRefCount = %d\n", File->FileSystem->TotalRefCount);
+		*New = This;
+		PrintInfo(L"  RET: " PERCENT_P L"\n", (UINTN)*New);
+		return EFI_SUCCESS;
+	}
+
+	Path = AllocatePool(PATH_MAX * sizeof(CHAR16));
+	if (Path == NULL) {
+		PrintError(L"Could not allocate path\n");
+		Status = EFI_OUT_OF_RESOURCES;
+		goto out;
+	}
+
+	/* If we have an absolute path, don't bother completing with the parent */
+	if (IS_PATH_DELIMITER(Name[0])) {
+		Len = 0;
+	} else {
+		Path[0] = PATH_CHAR;
+		SafeStrCpy(&Path[1], PATH_MAX - 1, File->Path);
+		Len = SafeStrLen(Path);
+		/* Add delimiter */
+		Path[Len++] = PATH_CHAR;
+	}
+
+	/* Copy the rest of the path */
+	SafeStrCpy(&Path[Len], PATH_MAX - Len, Name);
+
+	/* Convert the delimiters if needed */
+	for (i = SafeStrLen(Path) - 1; i >= Len; i--) {
+		if (Path[i] == L'\\')
+			Path[i] = PATH_CHAR;
+	}
+
+	/* Clean the path by removing double delimiters and processing '.' and '..' */
+	CleanPath(Path);
+
+	/* Allocate and initialise an instance of a file */
+	Status = NtfsCreateFile(&NewFile, File->FileSystem);
+	if (EFI_ERROR(Status)) {
+		PrintStatusError(Status, L"Could not instantiate file");
+		goto out;
+	}
+
+	/* See if we're dealing with the root */
+	if (Path[0] == 0 || (Path[0] == PATH_CHAR && Path[1] == 0)) {
+		PrintInfo(L"  Reopening <ROOT>\n");
+		NewFile->IsRoot = TRUE;
+	}
+
+	NewFile->Path = Path;
+	/* Avoid double free on error */
+	Path = NULL;
+
+	/* Set basename */
+	for (i = SafeStrLen(NewFile->Path) - 1; i >= 0; i--) {
+		if (NewFile->Path[i] == PATH_CHAR)
+			break;
+	}
+	NewFile->Basename = &NewFile->Path[i + 1];
+
+	Status = NtfsOpen(NewFile);
+	if (EFI_ERROR(Status)) {
+		if (Status != EFI_NOT_FOUND)
+			PrintStatusError(Status, L"Could not open file '%s'", Name);
+		goto out;
+	}
+
+	NewFile->RefCount++;
+	File->FileSystem->TotalRefCount++;
+	PrintExtra(L"TotalRefCount = %d\n", File->FileSystem->TotalRefCount);
+	*New = &NewFile->EfiFile;
+
+	PrintInfo(L"  RET: " PERCENT_P L"\n", (UINTN)*New);
+	Status = EFI_SUCCESS;
+
+out:
+	if (EFI_ERROR(Status))
+		NtfsDestroyFile(NewFile);
+	FreePool(Path);
+	return Status;
 }
 
 /* Ex version */
@@ -45,7 +151,7 @@ EFI_STATUS EFIAPI
 FileOpenEx(EFI_FILE_HANDLE This, EFI_FILE_HANDLE* New, CHAR16* Name,
 	UINT64 Mode, UINT64 Attributes, EFI_FILE_IO_TOKEN* Token)
 {
-	return EFI_UNSUPPORTED;
+	return FileOpen(This, New, Name, Mode, Attributes);
 }
 
 
@@ -58,7 +164,29 @@ FileOpenEx(EFI_FILE_HANDLE This, EFI_FILE_HANDLE* New, CHAR16* Name,
 EFI_STATUS EFIAPI
 FileClose(EFI_FILE_HANDLE This)
 {
-	return EFI_UNSUPPORTED;
+	EFI_NTFS_FILE* File = BASE_CR(This, EFI_NTFS_FILE, EfiFile);
+	/* Keep a pointer to the FS since we're going to delete File */
+	EFI_FS* FileSystem = File->FileSystem;
+
+	PrintInfo(L"Close(" PERCENT_P L"|'%s') %s\n", (UINTN)This, File->Path,
+		File->IsRoot ? L"<ROOT>" : L"");
+
+	File->RefCount--;
+	if (File->RefCount <= 0) {
+		NtfsClose(File);
+		/* NB: Basename points into File->Path and does not need to be freed */
+		NtfsDestroyFile(File);
+	}
+
+	/* If there are no more files open on the volume, unmount it */
+	FileSystem->TotalRefCount--;
+	PrintExtra(L"TotalRefCount = %d\n", FileSystem->TotalRefCount);
+	if (FileSystem->TotalRefCount <= 0) {
+		PrintInfo(L"Last file instance: Unmounting volume\n");
+		NtfsUnmount(FileSystem);
+	}
+
+	return EFI_SUCCESS;
 }
 
 /**
@@ -70,7 +198,19 @@ FileClose(EFI_FILE_HANDLE This)
 EFI_STATUS EFIAPI
 FileDelete(EFI_FILE_HANDLE This)
 {
-	return EFI_UNSUPPORTED;
+	EFI_NTFS_FILE* File = BASE_CR(This, EFI_NTFS_FILE, EfiFile);
+
+	/* Close file */
+	FileClose(This);
+
+#ifdef FORCE_READONLY
+	PrintError(L"Cannot delete '%s'\n", File->Path);
+#else
+	/* TODO: unlink file */
+#endif
+
+	/* Warn of failure to delete */
+	return EFI_WARN_DELETE_FAILURE;
 }
 
 /**
@@ -196,6 +336,21 @@ FileFlushEx(EFI_FILE_HANDLE This, EFI_FILE_IO_TOKEN* Token)
 /**
  * Open the volume and return a handle to the root directory
  *
+ * Note that, because we are working in an environment that can be
+ * shut down without notice, we want the volume to remain mounted
+ * for as little time as possible so that the user doesn't end up
+ * with the dreaded "unclean NTFS volume" after restart.
+ * In order to accomplish that, we keep a total reference count of
+ * all the files open on volume (in EFI_FS's TotalRefCount), which
+ * gets updated during Open() and Close() operations.
+ * When that number reaches zero, we unmount the NTFS volume.
+ *
+ * Obviously, this constant mounting and unmounting of the volume
+ * does have an effect on performance (and shouldn't really be
+ * necessary if the volume is mounted read-only), but it is the
+ * one way we have to try to preserve file system integrity on a
+ * system that users may just shut down by yanking a power cable.
+ *
  * @v This			EFI simple file system
  * @ret Root		File handle for the root directory
  * @ret Status		EFI status code
@@ -240,8 +395,10 @@ FileOpenVolume(EFI_SIMPLE_FILE_SYSTEM_PROTOCOL* This, EFI_FILE_HANDLE* Root)
 	RootFile->Path[0] = PATH_CHAR;
 	RootFile->Basename = &RootFile->Path[1];
 
-	/* Set the inital refcount */
+	/* Set the inital refcounts for both the file and the file system */
 	RootFile->RefCount = 1;
+	FSInstance->TotalRefCount++;
+	PrintExtra(L"TotalRefCount = %d\n", FSInstance->TotalRefCount);
 
 	/* Return the root handle */
 	*Root = (EFI_FILE_HANDLE)RootFile;
@@ -287,6 +444,11 @@ VOID
 FSUninstall(EFI_FS* This, EFI_HANDLE ControllerHandle)
 {
 	PrintInfo(L"FSUninstall: %s\n", This->DevicePathString);
+
+	if (This->TotalRefCount > 0) {
+		PrintWarning(L"Files are still open on this volume! Forcing unmount...\n");
+		NtfsUnmount(This);
+	}
 
 	gBS->UninstallMultipleProtocolInterfaces(ControllerHandle,
 		&gEfiSimpleFileSystemProtocolGuid, &This->FileIoInterface,
