@@ -53,12 +53,10 @@ FileOpen(EFI_FILE_HANDLE This, EFI_FILE_HANDLE* New,
 	PrintInfo(L"Open(" PERCENT_P L"%s, \"%s\")\n", (UINTN)This,
 		File->IsRoot ? L" <ROOT>" : L"", Name);
 
-#ifdef FORCE_READONLY
-	if (Mode != EFI_FILE_MODE_READ) {
+	if (NtfsIsVolumeReadOnly(File->FileSystem->NtfsVolume) &&  Mode != EFI_FILE_MODE_READ) {
 		PrintWarning(L"File '%s' can only be opened in read-only mode\n", Name);
 		return EFI_WRITE_PROTECTED;
 	}
-#endif
 
 	/* Additional failures */
 	if ((StrCmp(Name, L"..") == 0) && File->IsRoot) {
@@ -212,14 +210,12 @@ FileDelete(EFI_FILE_HANDLE This)
 	/* Close file */
 	FileClose(This);
 
-#ifdef FORCE_READONLY
-	PrintError(L"Cannot delete '%s'\n", File->Path);
-#else
-	/* TODO: unlink file */
-#endif
+	if (NtfsIsVolumeReadOnly(File->FileSystem->NtfsVolume)) {
+		PrintError(L"Cannot delete '%s'\n", File->Path);
+		return EFI_WRITE_PROTECTED;
+	}
 
-	/* Warn of failure to delete */
-	return EFI_WARN_DELETE_FAILURE;
+	return NtfsDeleteFile(File);
 }
 
 /**
@@ -356,13 +352,14 @@ FileWrite(EFI_FILE_HANDLE This, UINTN* Len, VOID* Data)
 {
 	EFI_NTFS_FILE* File = BASE_CR(This, EFI_NTFS_FILE, EfiFile);
 
-#ifdef FORCE_READONLY
-	PrintError(L"Cannot write to '%s'\n", File->Path);
-	return EFI_WRITE_PROTECTED;
-#else
-	/* TODO: Write support */
-	return EFI_UNSUPPORTED;
-#endif
+	if (NtfsIsVolumeReadOnly(File->FileSystem->NtfsVolume))
+		return EFI_WRITE_PROTECTED;
+
+	/* "Writes to open directory files are not supported" */
+	if (File->IsDir)
+		return EFI_UNSUPPORTED;
+
+	return NtfsWrite(File, Data, Len);
 }
 
 /* Ex version */
@@ -470,8 +467,10 @@ FileGetInfo(EFI_FILE_HANDLE This, EFI_GUID* Type, UINTN* Len, VOID* Data)
 		/* Set the Info attributes we obtain from the path */
 		Status = NtfsGetInfo(Info, File->FileSystem->NtfsVolume, File->Path,
 			0, File->IsDir);
-		if (EFI_ERROR(Status))
+		if (EFI_ERROR(Status)) {
 			PrintStatusError(Status, L"Could not set file info");
+			return Status;
+		}
 
 		/* The Info struct size accounts for the NUL string terminator */
 		MaxLen = (UINTN)(Info->Size - sizeof(EFI_FILE_INFO)) / sizeof(CHAR16);
@@ -491,7 +490,7 @@ FileGetInfo(EFI_FILE_HANDLE This, EFI_GUID* Type, UINTN* Len, VOID* Data)
 
 		ZeroMem(Data, sizeof(EFI_FILE_INFO));
 		FSInfo->Size = *Len;
-		FSInfo->ReadOnly = 1;
+		FSInfo->ReadOnly = NtfsIsVolumeReadOnly(File->FileSystem->NtfsVolume);
 		/* NB: This should really be cluster size, but we don't have access to that */
 		if (File->FileSystem->BlockIo2 != NULL) {
 			FSInfo->BlockSize = File->FileSystem->BlockIo2->Media->BlockSize;
@@ -555,17 +554,33 @@ FileGetInfo(EFI_FILE_HANDLE This, EFI_GUID* Type, UINTN* Len, VOID* Data)
 EFI_STATUS EFIAPI
 FileSetInfo(EFI_FILE_HANDLE This, EFI_GUID* Type, UINTN Len, VOID* Data)
 {
+	EFI_STATUS Status;
 	EFI_NTFS_FILE* File = BASE_CR(This, EFI_NTFS_FILE, EfiFile);
+	EFI_FILE_INFO* Info = (EFI_FILE_INFO*)Data;
+	EFI_FILE_SYSTEM_VOLUME_LABEL* VLInfo = (EFI_FILE_SYSTEM_VOLUME_LABEL*)Data;
 
-#ifdef FORCE_READONLY
-	Print(L"Cannot set information of type ");
-	PrintGuid(Type);
-	Print(L" for file '%s'\n", File->Path);
-	return EFI_WRITE_PROTECTED;
-#else
-	/* TODO: Write support */
-	return EFI_UNSUPPORTED;
-#endif
+	PrintInfo(L"SetInfo(" PERCENT_P L"|'%s', %d) %s\n", (UINTN)This,
+		File->Path, Len, File->IsDir ? L"<DIR>" : L"");
+
+	if (NtfsIsVolumeReadOnly(File->FileSystem->NtfsVolume))
+		return EFI_WRITE_PROTECTED;
+
+	if (CompareMem(Type, &gEfiFileInfoGuid, sizeof(*Type)) == 0) {
+		PrintExtra(L"Set regular file information\n");
+		Status = NtfsSetInfo(Info, File->FileSystem->NtfsVolume, File->Path);
+		if (EFI_ERROR(Status)) 
+			PrintStatusError(Status, L"Could not set file info");
+		return Status;
+	} else if (CompareMem(Type, &gEfiFileSystemVolumeLabelInfoIdGuid, sizeof(*Type)) == 0) {
+		PrintExtra(L"Set volume label\n");
+		return NtfsRenameVolume(File->FileSystem->NtfsVolume,
+			VLInfo->VolumeLabel, Len / sizeof(CHAR16));
+	} else {
+		Print(L"'%s': Cannot set information of type ", File->Path);
+		PrintGuid(Type);
+		Print(L"\n");
+		return EFI_UNSUPPORTED;
+	}
 }
 
 /**
@@ -583,12 +598,11 @@ FileFlush(EFI_FILE_HANDLE This)
 	EFI_NTFS_FILE* File = BASE_CR(This, EFI_NTFS_FILE, EfiFile);
 
 	PrintInfo(L"Flush(" PERCENT_P L"|'%s')\n", (UINTN) This, File->Path);
-#ifdef FORCE_READONLY
-	return EFI_SUCCESS;
-#else
-	/* TODO: Call ntfs_inode_sync() */
-	return EFI_UNSUPPORTED;
-#endif
+
+	if (NtfsIsVolumeReadOnly(File->FileSystem->NtfsVolume))
+		return EFI_SUCCESS;
+
+	return NtfsFlushFile(File);
 }
 
 /* Ex version */

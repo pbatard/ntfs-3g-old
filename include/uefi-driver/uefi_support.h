@@ -79,6 +79,7 @@
 #define TIME_MODIFIED           2
 
 #define NTFS_TO_UNIX_TIME(t)    ((t - (NTFS_TIME_OFFSET)) / 10000000)
+#define UNIX_TO_NTFS_TIME(t)    ((t * 10000000) + NTFS_TIME_OFFSET)
 
 /* Convenience assertion macros */
 #define FL_ASSERT(f, l, a)      if(!(a)) do { Print(L"*** ASSERT FAILED: %a(%d): %a ***\n", f, l, #a); while(1); } while(0)
