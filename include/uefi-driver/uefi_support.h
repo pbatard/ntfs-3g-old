@@ -35,6 +35,7 @@
 
 /* Sort out the differences between EDK2 and gnu-efi */
 #ifdef __MAKEWITH_GNUEFI
+#define UnicodeSPrint           SPrint
 #define BASE_CR                 _CR
 #define FORWARD_LINK_REF(list)  (list).Flink
 #define EFI_FILE_SYSTEM_VOLUME_LABEL EFI_FILE_SYSTEM_VOLUME_LABEL_INFO
@@ -129,7 +130,7 @@ static __inline UINTN _SafeStrLen(CONST CHAR16* String, CONST CHAR8* File,
 /*
  * Prototypes for the function calls provided in support.c
  */
-VOID PrintGuid(EFI_GUID* Guid);
+CHAR16* GuidToStr(EFI_GUID* Guid);
 VOID UnixTimeToEfiTime(time_t t, EFI_TIME* Time);
 time_t EfiTimeToUnixTime(EFI_TIME* Time);
 INTN CompareDevicePaths(CONST EFI_DEVICE_PATH* dp1, CONST EFI_DEVICE_PATH* dp2);

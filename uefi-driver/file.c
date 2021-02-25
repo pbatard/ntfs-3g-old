@@ -534,9 +534,7 @@ FileGetInfo(EFI_FILE_HANDLE This, EFI_GUID* Type, UINTN* Len, VOID* Data)
 
 	} else {
 
-		Print(L"'%s': Cannot get information of type ", File->Path);
-		PrintGuid(Type);
-		Print(L"\n");
+		PrintError(L"'%s': Cannot get information of type %s\n", File->Path, GuidToStr(Type));
 		return EFI_UNSUPPORTED;
 
 	}
@@ -576,9 +574,7 @@ FileSetInfo(EFI_FILE_HANDLE This, EFI_GUID* Type, UINTN Len, VOID* Data)
 		return NtfsRenameVolume(File->FileSystem->NtfsVolume,
 			VLInfo->VolumeLabel, Len / sizeof(CHAR16));
 	} else {
-		Print(L"'%s': Cannot set information of type ", File->Path);
-		PrintGuid(Type);
-		Print(L"\n");
+		PrintError(L"'%s': Cannot set information of type %s", File->Path, GuidToStr(Type));
 		return EFI_UNSUPPORTED;
 	}
 }

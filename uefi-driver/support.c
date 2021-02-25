@@ -19,23 +19,18 @@
 #include "uefi_support.h"
 
 /*
- * Print a GUID to standard output.
+ * Convert a GUID to a Unicode string.
+ * NB: Concurrent accesses to this call are not supported.
  */
-VOID PrintGuid(EFI_GUID* Guid)
+CHAR16* GuidToStr(EFI_GUID* Guid)
 {
-	Print(L"%08x-%04x-%04x-%02x%02x-%02x%02x%02x%02x%02x%02x\n",
-		Guid->Data1,
-		Guid->Data2,
-		Guid->Data3,
-		Guid->Data4[0],
-		Guid->Data4[1],
-		Guid->Data4[2],
-		Guid->Data4[3],
-		Guid->Data4[4],
-		Guid->Data4[5],
-		Guid->Data4[6],
-		Guid->Data4[7]
-	);
+	static CHAR16 GuidStr[37];
+	UnicodeSPrint(GuidStr, ARRAYSIZE(GuidStr),
+		L"%08x-%04x-%04x-%02x%02x-%02x%02x%02x%02x%02x%02x\n",
+		Guid->Data1, Guid->Data2, Guid->Data3, Guid->Data4[0],
+		Guid->Data4[1], Guid->Data4[2], Guid->Data4[3], Guid->Data4[4],
+		Guid->Data4[5], Guid->Data4[6], Guid->Data4[7]);
+	return GuidStr;
 }
 
 /*
