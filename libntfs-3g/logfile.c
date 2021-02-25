@@ -446,7 +446,7 @@ static int ntfs_check_and_load_restart_page(ntfs_attr *log_na,
 		*wrp = trp;
 	else {
 err_out:
-		free(trp);
+		ntfs_free(trp);
 	}
 	return err;
 }
@@ -586,7 +586,7 @@ BOOL ntfs_check_logfile(ntfs_attr *log_na, RESTART_PAGE_HEADER **rp)
 			pos = NTFS_BLOCK_SIZE >> 1;
 	}
 	if (kaddr) {
-		free(kaddr);
+		ntfs_free(kaddr);
 		kaddr = NULL;
 	}
 	if (logfile_is_empty) {
@@ -611,13 +611,13 @@ is_empty:
 		if (rstr2_lsn > rstr1_lsn) {
 			ntfs_log_debug("Using second restart page as it is more "
 					"recent.\n");
-			free(rstr1_ph);
+			ntfs_free(rstr1_ph);
 			rstr1_ph = rstr2_ph;
 			/* rstr1_lsn = rstr2_lsn; */
 		} else {
 			ntfs_log_debug("Using first restart page as it is more "
 					"recent.\n");
-			free(rstr2_ph);
+			ntfs_free(rstr2_ph);
 		}
 		rstr2_ph = NULL;
 	}
@@ -625,13 +625,13 @@ is_empty:
 	if (rp)
 		*rp = rstr1_ph;
 	else
-		free(rstr1_ph);
+		ntfs_free(rstr1_ph);
 	ntfs_log_trace("Done.\n");
 	return TRUE;
 err_out:
-	free(kaddr);
-	free(rstr1_ph);
-	free(rstr2_ph);
+	ntfs_free(kaddr);
+	ntfs_free(rstr1_ph);
+	ntfs_free(rstr2_ph);
 	return FALSE;
 }
 

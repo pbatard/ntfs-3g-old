@@ -218,7 +218,7 @@ int ntfs_attrlist_entry_add(ntfs_inode *ni, ATTR_RECORD *attr)
 			entry_offset, ni->attr_list_size - entry_offset);
 
 	/* Set new runlist. */
-	free(ni->attr_list);
+	ntfs_free(ni->attr_list);
 	ni->attr_list = new_al;
 	ni->attr_list_size = ni->attr_list_size + entry_len;
 	NInoAttrListSetDirty(ni);
@@ -228,7 +228,7 @@ int ntfs_attrlist_entry_add(ntfs_inode *ni, ATTR_RECORD *attr)
 err_out:
 	if (na)
 		ntfs_attr_close(na);
-	free(new_al);
+	ntfs_free(new_al);
 	errno = err;
 	return -1;
 }
@@ -298,7 +298,7 @@ int ntfs_attrlist_entry_rm(ntfs_attr_search_ctx *ctx)
 		ale->length), new_al_len - ((u8*)ale - base_ni->attr_list));
 
 	/* Set new runlist. */
-	free(base_ni->attr_list);
+	ntfs_free(base_ni->attr_list);
 	base_ni->attr_list = new_al;
 	base_ni->attr_list_size = new_al_len;
 	NInoAttrListSetDirty(base_ni);
@@ -308,7 +308,7 @@ int ntfs_attrlist_entry_rm(ntfs_attr_search_ctx *ctx)
 err_out:
 	if (na)
 		ntfs_attr_close(na);
-	free(new_al);
+	ntfs_free(new_al);
 	errno = err;
 	return -1;
 }

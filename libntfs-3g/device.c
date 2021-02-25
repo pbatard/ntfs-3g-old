@@ -129,7 +129,7 @@ struct ntfs_device *ntfs_device_alloc(const char *name, const long state,
 	if (dev) {
 		if (!(dev->d_name = strdup(name))) {
 			int eo = errno;
-			free(dev);
+			ntfs_free(dev);
 			errno = eo;
 			return NULL;
 		}
@@ -163,8 +163,8 @@ int ntfs_device_free(struct ntfs_device *dev)
 		errno = EBUSY;
 		return -1;
 	}
-	free(dev->d_name);
-	free(dev);
+	ntfs_free(dev->d_name);
+	ntfs_free(dev);
 	return 0;
 }
 
@@ -678,7 +678,7 @@ static int ntfs_device_get_geo(struct ntfs_device *dev)
 		/* List all "disk" class devices on the system. */
 		devlist = hd_list(hddata, hw_disk, 1, NULL);
 		if (!devlist) {
-			free(hddata);
+			ntfs_free(hddata);
 			err = ENOMEM;
 			goto skip_hd;
 		}
@@ -750,7 +750,7 @@ end_hd:
 			hd_free_hd_list(partlist);
 		hd_free_hd_list(devlist);
 		hd_free_hd_data(hddata);
-		free(hddata);
+		ntfs_free(hddata);
 		if (done) {
 			ntfs_log_debug("EDD/BIOD legacy heads = %u, sectors "
 					"per track = %u\n", dev->d_heads,

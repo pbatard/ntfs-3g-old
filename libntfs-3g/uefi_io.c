@@ -27,6 +27,7 @@
 #include "logging.h"
 #include "compat.h"
 #include "unistr.h"
+#include "misc.h"
 #include "uefi_support.h"
 
 /**
@@ -61,7 +62,7 @@ static int ntfs_device_uefi_io_open(struct ntfs_device *dev, int flags)
 		if (StrCmp(FileSystem->DevicePathString, DevName) == 0)
 			break;
 	}
-	free(DevName);
+	ntfs_free(DevName);
 	if (FileSystem == (EFI_FS*)&FsListHead) {
 		errno = ENODEV;
 		return -1;

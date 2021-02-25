@@ -22,6 +22,7 @@
 
 #include "compat.h"
 #include "logging.h"
+#include "misc.h"
 #include "uefi_support.h"
 
 #ifdef __MAKEWITH_GNUEFI
@@ -77,6 +78,7 @@ int ffs(int i)
 #endif /* _MSC_VER */
 }
 
+#if 0
 /*
  * Memory allocation calls that hook into the standard UEFI
  * allocation ones. Note that, in order to be able to use
@@ -127,6 +129,7 @@ void free(void* p)
 	if (p != NULL)
 		FreePool(&ptr[-1]);
 }
+#endif
 
 /*
  * Depending on the compiler, the arch, and the toolchain,
@@ -220,7 +223,7 @@ char* strcat(char* dst, const char* src)
 char* strdup(const char* s)
 {
 	/* strlen validates the sanity of the source */
-	char* ret = malloc(strlen(s) + 1);
+	char* ret = ntfs_malloc(strlen(s) + 1);
 	if (ret == NULL)
 		return NULL;
 	return memcpy(ret, s, strlen(s) + 1);
@@ -254,7 +257,7 @@ int snprintf(char* str, size_t size, const char* format, ...)
 	ret = AsciiVSPrint(str, size, ascii_format, args);
 	VA_END(args);
 
-	free(ascii_format);
+	ntfs_free(ascii_format);
 	return (int)ret;
 }
 

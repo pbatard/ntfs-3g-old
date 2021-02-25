@@ -280,7 +280,7 @@ struct CACHED_GENERIC *ntfs_enter_cache(struct CACHE_HEADER *cache,
 				cache->oldest_entry = current->previous;
 				if (item->varsize) {
 					if (current->varsize)
-						current->variable = realloc(
+						current->variable = ntfs_realloc(
 							current->variable,
 							item->varsize);
 					else
@@ -288,7 +288,7 @@ struct CACHED_GENERIC *ntfs_enter_cache(struct CACHE_HEADER *cache,
 							item->varsize);
 				} else {
 					if (current->varsize)
-						free(current->variable);
+						ntfs_free(current->variable);
 					current->variable = (void*)NULL;
 				}
 				current->varsize = item->varsize;
@@ -356,7 +356,7 @@ static void do_invalidate(struct CACHE_HEADER *cache,
 	current->next = cache->free_entry;
 	cache->free_entry = current;
 	if (current->variable)
-		free(current->variable);
+		ntfs_free(current->variable);
 	current->varsize = 0;
    }
 
@@ -459,9 +459,9 @@ static void ntfs_free_cache(struct CACHE_HEADER *cache)
 			if (cache->dofree)
 				cache->dofree(entry);
 			if (entry->variable)
-				free(entry->variable);
+				ntfs_free(entry->variable);
 		}
-		free(cache);
+		ntfs_free(cache);
 	}
 }
 

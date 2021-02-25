@@ -23,7 +23,6 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
-
 #ifdef HAVE_STDLIB_H
 #include <stdlib.h>
 #endif
@@ -34,7 +33,9 @@
 #include "types.h"
 #include "misc.h"
 #include "logging.h"
+#include "compat.h"
 
+#ifndef UEFI_DRIVER
 /**
  * ntfs_calloc
  * 
@@ -75,3 +76,69 @@ void ntfs_free(void *p)
 {
 	free(p);
 }
+#else
+
+#ifdef __MAKEWITH_GNUEFI
+#include <efi.h>
+#include <efilib.h>
+#else /* __MAKEWITH_GNUEFI */
+#include <Base.h>
+#include <Uefi.h>
+#include <Library/BaseMemoryLib.h>
+#endif
+
+ /*
+  * Memory allocation calls that hook into the standard UEFI
+  * allocation ones. Note that, in order to be able to use
+  * UEFI's ReallocatePool(), we must keep track of the allocated
+  * size, which we store as a size_t before the effective payload.
+  */
+void* ntfs_malloc(size_t size)
+{
+	/* Keep track of the allocated size for realloc */
+	size_t* p = AllocatePool(size + sizeof(size_t));
+	if (!p) {
+		ntfs_log_perror("Failed to malloc %lld bytes", (long long)size);
+		return NULL;
+	}
+	p[0] = size;
+	return &p[1];
+}
+
+void* ntfs_calloc(size_t size)
+{
+	/* Keep track of the allocated size for realloc */
+	size_t* p = AllocateZeroPool(size + sizeof(size_t));
+	if (!p) {
+		ntfs_log_perror("Failed to calloc %lld bytes", (long long)size);
+		return NULL;
+	}
+	p[0] = size;
+	return &p[1];
+}
+
+void* ntfs_realloc(void* p, size_t new_size)
+{
+	size_t* ptr = (size_t*)p;
+
+	if (ptr != NULL) {
+		/* Access the previous size, which was stored in malloc/calloc */
+		ptr = &ptr[-1];
+#ifdef __MAKEWITH_GNUEFI
+		ptr = ReallocatePool(ptr, (UINTN)*ptr, (UINTN)(new_size + sizeof(size_t)));
+#else
+		ptr = ReallocatePool((UINTN)*ptr, (UINTN)(new_size + sizeof(size_t)), ptr);
+#endif
+		if (ptr != NULL)
+			*ptr++ = new_size;
+	}
+	return ptr;
+}
+
+void ntfs_free(void* p)
+{
+	size_t* ptr = (size_t*)p;
+	if (p != NULL)
+		FreePool(&ptr[-1]);
+}
+#endif

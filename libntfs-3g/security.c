@@ -207,7 +207,7 @@ char *ntfs_guid_to_mbs(const NTFS_GUID *guid, char *guid_str)
 	if (res == 36)
 		return _guid_str;
 	if (!guid_str)
-		free(_guid_str);
+		ntfs_free(_guid_str);
 	errno = EINVAL;
 	return NULL;
 }
@@ -354,7 +354,7 @@ err_out:
 	else
 		i = errno;
 	if (!sid_str_size)
-		free(sid_str);
+		ntfs_free(sid_str);
 	errno = i;
 	return NULL;
 }
@@ -462,7 +462,7 @@ static int entersecurity_stuff(ntfs_volume *vol, off_t offs)
 				res = -1;
 			}
 		} while (!res && (total < ALIGN_SDS_BLOCK));
-		free(stuff);
+		ntfs_free(stuff);
 	} else {
 		errno = ENOMEM;
 		res = -1;
@@ -530,7 +530,7 @@ static int entersecurity_data(ntfs_volume *vol,
 				4, offs - gap + ALIGN_SDS_BLOCK + fullsz);
 		} else
 			errno = ENOSPC;
-		free(fullattr);
+		ntfs_free(fullattr);
 	} else
 		errno = ENOMEM;
 	return (res);
@@ -901,7 +901,7 @@ static le32 setsecurityattr(ntfs_volume *vol,
 							oldattr, size, offs);
 						found = (rdsize == size)
 							&& !memcmp(oldattr,attr,size);
-						free(oldattr);
+						ntfs_free(oldattr);
 					  /* if the records do not compare */
 					  /* (hash collision), try next one */
 						if (!found) {
@@ -1481,12 +1481,12 @@ static void free_caches(struct SECURITY_CONTEXT *scx)
 					cacheentry = &pseccache->cachetable[index1][index2];
 					if (cacheentry->valid
 					    && cacheentry->pxdesc)
-						free(cacheentry->pxdesc);
+						ntfs_free(cacheentry->pxdesc);
 					}
 #endif
-				free(pseccache->cachetable[index1]);
+				ntfs_free(pseccache->cachetable[index1]);
 			}
-		free(pseccache);
+		ntfs_free(pseccache);
 	}
 }
 
@@ -1567,7 +1567,7 @@ static void resize_cache(struct SECURITY_CONTEXT *scx,
 			memcpy(newcache,oldcache,
 			    sizeof(struct PERMISSIONS_CACHE)
 			      + (oldcnt - 1)*sizeof(struct CACHED_PERMISSIONS*));
-			free(oldcache);
+			ntfs_free(oldcache);
 			     /* mark new entries as not valid */
 			for (i=newcache->head.last+1; i<=index1; i++)
 				newcache->cachetable[i]
@@ -1626,11 +1626,11 @@ static struct CACHED_PERMISSIONS *enter_cache(struct SECURITY_CONTEXT *scx,
 			cacheentry->gid = gid;
 #if POSIXACLS
 			if (cacheentry->valid && cacheentry->pxdesc)
-				free(cacheentry->pxdesc);
+				ntfs_free(cacheentry->pxdesc);
 			if (pxdesc) {
 				pxsize = sizeof(struct POSIX_SECURITY)
 					+ (pxdesc->acccnt + pxdesc->defcnt)*sizeof(struct POSIX_ACE);
-				pxcached = (struct POSIX_SECURITY*)malloc(pxsize);
+				pxcached = (struct POSIX_SECURITY*)ntfs_malloc(pxsize);
 				if (pxcached) {
 					memcpy(pxcached, pxdesc, pxsize);
 					cacheentry->pxdesc = pxcached;
@@ -1661,7 +1661,7 @@ static struct CACHED_PERMISSIONS *enter_cache(struct SECURITY_CONTEXT *scx,
 			/* allocate block, if cache table was allocated */
 			if (pcache && (index1 <= pcache->head.last)) {
 				cacheblock = (struct CACHED_PERMISSIONS*)
-					malloc(sizeof(struct CACHED_PERMISSIONS)
+					ntfs_malloc(sizeof(struct CACHED_PERMISSIONS)
 						<< CACHE_PERMISSIONS_BITS);
 				pcache->cachetable[index1] = cacheblock;
 				for (i=0; i<(1 << CACHE_PERMISSIONS_BITS); i++)
@@ -1674,7 +1674,7 @@ static struct CACHED_PERMISSIONS *enter_cache(struct SECURITY_CONTEXT *scx,
 					if (pxdesc) {
 						pxsize = sizeof(struct POSIX_SECURITY)
 							+ (pxdesc->acccnt + pxdesc->defcnt)*sizeof(struct POSIX_ACE);
-						pxcached = (struct POSIX_SECURITY*)malloc(pxsize);
+						pxcached = (struct POSIX_SECURITY*)ntfs_malloc(pxsize);
 						if (pxcached) {
 							memcpy(pxcached, pxdesc, pxsize);
 							cacheentry->pxdesc = pxcached;
@@ -1855,7 +1855,7 @@ static char *retrievesecurityattr(ntfs_volume *vol, SII_INDEX_KEY id)
 					|| !ntfs_valid_descr(securattr,
 						rdsize)) {
 					/* error to be logged by caller */
-					free(securattr);
+					ntfs_free(securattr);
 					securattr = (char*)NULL;
 				}
 			}
@@ -1911,7 +1911,7 @@ static char *getsecurityattr(ntfs_volume *vol, ntfs_inode *ni)
 		if (securattr && !ntfs_valid_descr(securattr, readallsz)) {
 			ntfs_log_error("Bad security descriptor for inode %lld\n",
 				(long long)ni->mft_no);
-			free(securattr);
+			ntfs_free(securattr);
 			securattr = (char*)NULL;
 		}
 	}
@@ -2163,9 +2163,9 @@ static int ntfs_get_perm(struct SECURITY_CONTEXT *scx,
 				}
 				if (pxdesc) {
 					perm = access_check_posix(scx,pxdesc,request,uid,gid);
-					free(pxdesc);
+					ntfs_free(pxdesc);
 				}
-				free(securattr);
+				ntfs_free(securattr);
 			} else {
 				perm = -1;
 				uid = gid = 0;
@@ -2253,7 +2253,7 @@ int ntfs_get_posix_acl(struct SECURITY_CONTEXT *scx, ntfs_inode *ni,
 					enter_cache(scx, ni, uid,
 							gid, pxdesc);
 				}
-				free(securattr);
+				ntfs_free(securattr);
 			} else
 				pxdesc = (struct POSIX_SECURITY*)NULL;
 		}
@@ -2297,7 +2297,7 @@ int ntfs_get_posix_acl(struct SECURITY_CONTEXT *scx, ntfs_inode *ni,
 				ntfs_log_error("Invalid Posix ACL built\n");
 			}
 			if (!cached)
-				free(pxdesc);
+				ntfs_free(pxdesc);
 		} else
 			outsize = 0;
 	}
@@ -2385,7 +2385,7 @@ static int ntfs_get_perm(struct SECURITY_CONTEXT *scx,
 					enter_cache(scx, ni, uid,
 							gid, perm);
 				}
-				free(securattr);
+				ntfs_free(securattr);
 			} else {
 				perm = -1;
 				uid = gid = 0;
@@ -2442,7 +2442,7 @@ int ntfs_get_ntfs_acl(struct SECURITY_CONTEXT *scx, ntfs_inode *ni,
 		if (outsize <= size) {
 			memcpy(value,securattr,outsize);
 		}
-		free(securattr);
+		ntfs_free(securattr);
 	}
 	return (outsize ? (int)outsize : -errno);
 }
@@ -2548,13 +2548,13 @@ int ntfs_get_owner_mode(struct SECURITY_CONTEXT *scx,
 #if POSIXACLS
 					enter_cache(scx, ni, stbuf->st_uid,
 						stbuf->st_gid, pxdesc);
-					free(pxdesc);
+					ntfs_free(pxdesc);
 #else
 					enter_cache(scx, ni, stbuf->st_uid,
 						stbuf->st_gid, perm);
 #endif
 				}
-				free(securattr);
+				ntfs_free(securattr);
 			}
 		}
 	}
@@ -2647,9 +2647,9 @@ static struct POSIX_SECURITY *inherit_posix(struct SECURITY_CONTEXT *scx,
 					pydesc = ntfs_build_basic_posix(
 						pxdesc, mode,
 						scx->umask, isdir);
-				free(pxdesc);
+				ntfs_free(pxdesc);
 			}
-			free(securattr);
+			ntfs_free(securattr);
 		}
 	}
 	return (pydesc);
@@ -2724,7 +2724,7 @@ le32 ntfs_alloc_securid(struct SECURITY_CONTEXT *scx,
 							GENERIC(&wanted),
 							(cache_compare)compare);
 				}
-				free(newattr);
+				ntfs_free(newattr);
 			} else {
 				/*
 				 * could not build new security attribute
@@ -2732,7 +2732,7 @@ le32 ntfs_alloc_securid(struct SECURITY_CONTEXT *scx,
 				 */
 			}
 		}
-	free(pxdesc);
+		ntfs_free(pxdesc);
 	}
 #endif
 	return (securid);
@@ -2792,7 +2792,7 @@ int ntfs_set_inherited_posix(struct SECURITY_CONTEXT *scx,
 						(cache_compare)leg_compare,0);
 			}
 #endif
-			free(newattr);
+			ntfs_free(newattr);
 
 		} else {
 			/*
@@ -2862,7 +2862,7 @@ le32 ntfs_alloc_securid(struct SECURITY_CONTEXT *scx,
 						GENERIC(&wanted),
 						(cache_compare)compare);
 			}
-			free(newattr);
+			ntfs_free(newattr);
 		} else {
 			/*
 			 * could not build new security attribute
@@ -3002,7 +3002,7 @@ int ntfs_set_owner_mode(struct SECURITY_CONTEXT *scx, ntfs_inode *ni,
 				}
 #endif
 			}
-			free(newattr);
+			ntfs_free(newattr);
 		} else {
 			/*
 			 * could not build new security attribute
@@ -3062,7 +3062,7 @@ BOOL ntfs_allowed_as_owner(struct SECURITY_CONTEXT *scx, ntfs_inode *ni)
 				uid = ntfs_find_user(scx->mapping[MAPUSERS],
 						usid);
 				gotowner = TRUE;
-				free(oldattr);
+				ntfs_free(oldattr);
 			}
 		}
 /* TODO : use CAP_FOWNER process capability */
@@ -3155,9 +3155,9 @@ int ntfs_set_posix_acl(struct SECURITY_CONTEXT *scx, ntfs_inode *ni,
 						newpxdesc = ntfs_replace_acl(oldpxdesc,
 							(const struct POSIX_ACL*)value,count,deflt);
 					}
-					free(oldpxdesc);
+					ntfs_free(oldpxdesc);
 				}
-				free(oldattr);
+				ntfs_free(oldattr);
 			}
 		}
 	} else
@@ -3179,7 +3179,7 @@ int ntfs_set_posix_acl(struct SECURITY_CONTEXT *scx, ntfs_inode *ni,
 				newpxdesc->mode, newpxdesc);
 		} else
 			errno = EPERM;
-		free(newpxdesc);
+		ntfs_free(newpxdesc);
 	}
 	return (res ? -1 : 0);
 }
@@ -3247,7 +3247,7 @@ int ntfs_set_ntfs_acl(struct SECURITY_CONTEXT *scx, ntfs_inode *ni,
 					(cache_compare)leg_compare,0);
 			}
 #endif
-			free(attr);
+			ntfs_free(attr);
 		} else
 			errno = ENOMEM;
 	} else
@@ -3296,7 +3296,7 @@ int ntfs_set_mode(struct SECURITY_CONTEXT *scx, ntfs_inode *ni, mode_t mode)
 				/* must copy before merging */
 			pxsize = sizeof(struct POSIX_SECURITY)
 				+ (oldpxdesc->acccnt + oldpxdesc->defcnt)*sizeof(struct POSIX_ACE);
-			newpxdesc = (struct POSIX_SECURITY*)malloc(pxsize);
+			newpxdesc = (struct POSIX_SECURITY*)ntfs_malloc(pxsize);
 			if (newpxdesc) {
 				memcpy(newpxdesc, oldpxdesc, pxsize);
 				if (ntfs_merge_mode_posix(newpxdesc, mode))
@@ -3325,7 +3325,7 @@ int ntfs_set_mode(struct SECURITY_CONTEXT *scx, ntfs_inode *ni, mode_t mode)
 			if (!newpxdesc || ntfs_merge_mode_posix(newpxdesc, mode))
 				res = -1;
 #endif
-			free(oldattr);
+			ntfs_free(oldattr);
 		} else
 			res = -1;
 	}
@@ -3366,7 +3366,7 @@ int ntfs_set_mode(struct SECURITY_CONTEXT *scx, ntfs_inode *ni, mode_t mode)
 		errno = EIO;
 	}
 #if POSIXACLS
-	if (newpxdesc) free(newpxdesc);
+	if (newpxdesc) ntfs_free(newpxdesc);
 #endif
 	return (res ? -1 : 0);
 }
@@ -3437,7 +3437,7 @@ int ntfs_sd_add_everyone(ntfs_inode *ni)
 	if (ret)
 		ntfs_log_perror("Failed to add initial SECURITY_DESCRIPTOR");
 	
-	free(sd);
+	ntfs_free(sd);
 	return ret;
 }
 
@@ -3629,7 +3629,7 @@ BOOL old_ntfs_allowed_dir_access(struct SECURITY_CONTEXT *scx,
 				}
 			}
 		}
-		free(dirpath);
+		ntfs_free(dirpath);
 	}
 	return (allow);		/* errno is set if not allowed */
 }
@@ -3711,7 +3711,7 @@ int ntfs_set_owner(struct SECURITY_CONTEXT *scx, ntfs_inode *ni,
 			} else
 				res = -1;
 #endif
-			free(oldattr);
+			ntfs_free(oldattr);
 		} else
 			res = -1;
 	}
@@ -3746,7 +3746,7 @@ int ntfs_set_owner(struct SECURITY_CONTEXT *scx, ntfs_inode *ni,
 		}
 #if POSIXACLS
 		if (pxdescbuilt)
-			free(pxdesc);
+			ntfs_free(pxdesc);
 #endif
 	} else {
 		/*
@@ -3797,7 +3797,7 @@ int ntfs_set_ownmod(struct SECURITY_CONTEXT *scx, ntfs_inode *ni,
 				/* must copy before merging */
 			pxsize = sizeof(struct POSIX_SECURITY)
 				+ (oldpxdesc->acccnt + oldpxdesc->defcnt)*sizeof(struct POSIX_ACE);
-			newpxdesc = (struct POSIX_SECURITY*)malloc(pxsize);
+			newpxdesc = (struct POSIX_SECURITY*)ntfs_malloc(pxsize);
 			if (newpxdesc) {
 				memcpy(newpxdesc, oldpxdesc, pxsize);
 				if (ntfs_merge_mode_posix(newpxdesc, mode))
@@ -3833,7 +3833,7 @@ int ntfs_set_ownmod(struct SECURITY_CONTEXT *scx, ntfs_inode *ni,
 				filegid = ntfs_find_group(scx->mapping[MAPGROUPS],gsid);
 			}
 #endif
-			free(oldattr);
+			ntfs_free(oldattr);
 		} else
 			res = -1;
 	}
@@ -3870,7 +3870,7 @@ int ntfs_set_ownmod(struct SECURITY_CONTEXT *scx, ntfs_inode *ni,
 		errno = EIO;
 	}
 #if POSIXACLS
-	free(newpxdesc);
+	ntfs_free(newpxdesc);
 #endif
 	return (res ? -1 : 0);
 }
@@ -4021,7 +4021,7 @@ static le32 build_inherited_id(struct SECURITY_CONTEXT *scx,
 		pos += gsidsz;
 		securid = setsecurityattr(scx->vol,
 			(SECURITY_DESCRIPTOR_RELATIVE*)newattr, pos);
-		free(newattr);
+		ntfs_free(newattr);
 	} else
 		securid = const_cpu_to_le32(0);
 	return (securid);
@@ -4073,7 +4073,7 @@ le32 ntfs_inherited_id(struct SECURITY_CONTEXT *scx,
 		if (parentattr) {
 			securid = build_inherited_id(scx,
 						parentattr, fordir);
-			free(parentattr);
+			ntfs_free(parentattr);
 			/*
 			 * Store the result into cache for further use
 			 * if the current process owns the parent directory
@@ -4119,9 +4119,9 @@ static int link_single_group(struct MAPPING *usermapping, struct passwd *user,
 			grmem++;
 		if (*grmem) {
 			if (!grcnt)
-				groups = (gid_t*)malloc(sizeof(gid_t));
+				groups = (gid_t*)ntfs_malloc(sizeof(gid_t));
 			else
-				groups = (gid_t*)realloc(groups,
+				groups = (gid_t*)ntfs_realloc(groups,
 					(grcnt+1)*sizeof(gid_t));
 			if (groups)
 				groups[grcnt++]	= gid;
@@ -4280,7 +4280,7 @@ static int ntfs_default_mapping(struct SECURITY_CONTEXT *scx)
 			if (ntfs_is_user_sid(usid))
 				res = ntfs_do_default_mapping(scx,
 						scx->uid, scx->gid, usid);
-			free(securattr);
+			ntfs_free(securattr);
 		}
 		ntfs_inode_close(ni);
 	}
@@ -4381,7 +4381,7 @@ int ntfs_build_mapping(struct SECURITY_CONTEXT *scx, const char *usermap_path,
 		/* and rely on internal representation */
 		while (firstitem) {
 			item = firstitem->next;
-			free(firstitem);
+			ntfs_free(firstitem);
 			firstitem = item;
 		}
 	} else {
@@ -4875,7 +4875,7 @@ static BOOL mergesecurityattr(ntfs_volume *vol, const char *oldattr,
 		targhead->alignment = 0;
 		targhead->control = control;
 		ok = !update_secur_descr(vol, target, ni);
-		free(target);
+		ntfs_free(target);
 	}
 	return (ok);
 }
@@ -4924,7 +4924,7 @@ int ntfs_get_file_security(struct SECURITY_API *scapi,
 					else
 						res = -1;
 				}
-				free(attr);
+				ntfs_free(attr);
 			}
 			ntfs_inode_close(ni);
 		} else
@@ -4995,7 +4995,7 @@ int ntfs_set_file_security(struct SECURITY_API *scapi,
 						else
 							res = -1;
 					}
-					free(oldattr);
+					ntfs_free(oldattr);
 				}
 				ntfs_inode_close(ni);
 			}
@@ -5377,7 +5377,7 @@ struct SECURITY_API *ntfs_initialize_file_security(const char *device,
 				ntfs_build_mapping(scx,(const char*)NULL,TRUE);
 			} else {
 				if (scapi)
-					free(scapi);
+					ntfs_free(scapi);
 				else
 					errno = ENOMEM;
 				mnt = ntfs_umount(vol,FALSE);
@@ -5407,7 +5407,7 @@ BOOL ntfs_leave_file_security(struct SECURITY_API *scapi)
 	if (scapi && (scapi->magic == MAGIC_API) && scapi->security.vol) {
 		vol = scapi->security.vol;
 		ntfs_destroy_security_context(&scapi->security);
-		free(scapi);
+		ntfs_free(scapi);
  		if (!ntfs_umount(vol, 0))
 			ok = TRUE;
 	}

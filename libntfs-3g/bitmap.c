@@ -250,7 +250,7 @@ static int ntfs_bitmap_set_bits_in_run(ntfs_attr *na, s64 start_bit,
 	ret = 0;
 	
 free_err_out:
-	free(buf);
+	ntfs_free(buf);
 	return ret;
 }
 

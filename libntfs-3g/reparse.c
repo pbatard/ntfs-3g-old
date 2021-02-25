@@ -265,7 +265,7 @@ static char *search_absolute(ntfs_volume *vol, ntfschar *path,
 		|| (ni->flags & FILE_ATTR_REPARSE_POINT)))
 		if (ntfs_ucstombs(path, count, &target, 0) < 0) {
 			if (target) {
-				free(target);
+				ntfs_free(target);
 				target = (char*)NULL;
 			}
 		}
@@ -376,7 +376,7 @@ static char *search_relative(ntfs_inode *ni, ntfschar *path, int count)
 	}
 
 	if (ok && (ntfs_ucstombs(path, count, &target, 0) < 0)) {
-		free(target); // needed ?
+		ntfs_free(target); // needed ?
 		target = (char*)NULL;
 	}
 	return (target);
@@ -420,7 +420,7 @@ static int ntfs_drive_letter(ntfs_volume *vol, ntfschar letter)
 			}
 	}
 	if (drive)
-		free(drive);
+		ntfs_free(drive);
 	return (ret);
 }
 
@@ -606,7 +606,7 @@ static char *ntfs_get_fulllink(ntfs_volume *vol, ntfschar *junction,
 				strcat(fulltarget,"/");
 				strcat(fulltarget,target);
 			}
-			free(target);
+			ntfs_free(target);
 		}
 	}
 			/*
@@ -640,7 +640,7 @@ static char *ntfs_get_fulllink(ntfs_volume *vol, ntfschar *junction,
 			}
 		}
 		if (target)
-			free(target);
+			ntfs_free(target);
 	}
 	return (fulltarget);
 }
@@ -715,7 +715,7 @@ char *ntfs_get_abslink(ntfs_volume *vol, ntfschar *junction, int count,
 				strcat(fulltarget,"/");
 				strcat(fulltarget,target);
 			}
-			free(target);
+			ntfs_free(target);
 		}
 	}
 			/*
@@ -747,7 +747,7 @@ char *ntfs_get_abslink(ntfs_volume *vol, ntfschar *junction, int count,
 			}
 		}
 		if (target)
-			free(target);
+			ntfs_free(target);
 	}
 	return (fulltarget);
 }
@@ -892,7 +892,7 @@ char *ntfs_make_symlink(ntfs_inode *ni, const char *mnt_point)
 			}
 			break;
 		}
-		free(reparse_attr);
+		ntfs_free(reparse_attr);
 	}
 	if (bad)
 		errno = EOPNOTSUPP;
@@ -924,7 +924,7 @@ BOOL ntfs_possible_symlink(ntfs_inode *ni)
 			possible = TRUE;
 		default : ;
 		}
-		free(reparse_attr);
+		ntfs_free(reparse_attr);
 	}
 	return (possible);
 }
@@ -1172,7 +1172,7 @@ int ntfs_get_ntfs_reparse_data(ntfs_inode *ni, char *value, size_t size)
 					else
 						errno = EINVAL;
 				}
-				free(reparse_attr);
+				ntfs_free(reparse_attr);
 			}
 		} else
 			errno = ENODATA;
@@ -1350,7 +1350,7 @@ int ntfs_reparse_set_wsl_symlink(ntfs_inode *ni,
 	len = ntfs_ucstombs(target, target_len, &utarget, 0);
 	if (len > 0) {
 		reparse_len = sizeof(REPARSE_POINT) + sizeof(data->type) + len;
-		reparse = (REPARSE_POINT*)malloc(reparse_len);
+		reparse = (REPARSE_POINT*)ntfs_malloc(reparse_len);
 		if (reparse) {
 			data = (struct WSL_LINK_REPARSE_DATA*)
 					reparse->reparse_data;
@@ -1362,10 +1362,10 @@ int ntfs_reparse_set_wsl_symlink(ntfs_inode *ni,
 			memcpy(data->link, utarget, len);
 			res = ntfs_set_ntfs_reparse_data(ni,
 				(char*)reparse, reparse_len, 0);
-			free(reparse);
+			ntfs_free(reparse);
 		}
 	}
-	free(utarget);
+	ntfs_free(utarget);
 	return (res);
 }
 
@@ -1404,14 +1404,14 @@ int ntfs_reparse_set_wsl_not_symlink(ntfs_inode *ni, mode_t mode)
 	}
 	if (len >= 0) {
 		reparse_len = sizeof(REPARSE_POINT) + len;
-		reparse = (REPARSE_POINT*)malloc(reparse_len);
+		reparse = (REPARSE_POINT*)ntfs_malloc(reparse_len);
 		if (reparse) {
 			reparse->reparse_tag = reparse_tag;
 			reparse->reparse_data_length = cpu_to_le16(len);
 			reparse->reserved = const_cpu_to_le16(0);
 			res = ntfs_set_ntfs_reparse_data(ni,
 				(char*)reparse, reparse_len, 0);
-			free(reparse);
+			ntfs_free(reparse);
 		}
 	}
 	return (res);
@@ -1437,7 +1437,7 @@ REPARSE_POINT *ntfs_get_reparse_point(ntfs_inode *ni)
 			AT_REPARSE_POINT,(ntfschar*)NULL, 0, &attr_size);
 		if (reparse_attr
 		    && !valid_reparse_data(ni, reparse_attr, attr_size)) {
-			free(reparse_attr);
+			ntfs_free(reparse_attr);
 			reparse_attr = (REPARSE_POINT*)NULL;
 			errno = EINVAL;
 		}

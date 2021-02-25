@@ -154,7 +154,7 @@ static void ntfs_index_ctx_free(ntfs_index_context *icx)
 			/* FIXME: Error handling!!! */
 			ntfs_ib_write(icx, icx->ib);
 		}
-		free(icx->ib);
+		ntfs_free(icx->ib);
 	}
 	
 	ntfs_attr_close(icx->ia_na);
@@ -169,7 +169,7 @@ static void ntfs_index_ctx_free(ntfs_index_context *icx)
 void ntfs_index_ctx_put(ntfs_index_context *icx)
 {
 	ntfs_index_ctx_free(icx);
-	free(icx);
+	ntfs_free(icx);
 }
 
 /**
@@ -782,7 +782,7 @@ descend_into_child_node:
 err_out:
 	icx->bad_index = TRUE;	/* Force icx->* to be freed */
 err_lookup:
-	free(ib);
+	ntfs_free(ib);
 	if (!err)
 		err = EIO;
 	errno = err;
@@ -951,7 +951,7 @@ static int ntfs_ibm_clear(ntfs_index_context *icx, VCN vcn)
 	return ntfs_ibm_modify(icx, vcn, 0);
 }
 
-static VCN ntfs_ibm_get_free(ntfs_index_context *icx)
+static VCN ntfs_ibm_get_ntfs_free(ntfs_index_context *icx)
 {
 	u8 *bm;
 	int bit;
@@ -984,7 +984,7 @@ out:
 	if (ntfs_ibm_set(icx, vcn))
 		vcn = (VCN)-1;
 	
-	free(bm);
+	ntfs_free(bm);
 	return vcn;
 }
 
@@ -1063,7 +1063,7 @@ static int ntfs_ib_copy_tail(ntfs_index_context *icx, INDEX_BLOCK *src,
 					      le32_to_cpu(dst->index.entries_offset));
 	ret = ntfs_ib_write(icx, dst);
 
-	free(dst);
+	ntfs_free(dst);
 	return ret;
 }
 
@@ -1136,7 +1136,7 @@ static int ntfs_ir_reparent(ntfs_index_context *icx)
 		if (ntfs_ia_add(icx))
 			goto out;
 	
-	new_ib_vcn = ntfs_ibm_get_free(icx);
+	new_ib_vcn = ntfs_ibm_get_ntfs_free(icx);
 	if (new_ib_vcn == -1)
 		goto out;
 		
@@ -1201,7 +1201,7 @@ retry :
 	
 	ret = STATUS_OK;
 err_out:
-	free(ib);
+	ntfs_free(ib);
 	ntfs_attr_put_search_ctx(ctx);
 out:
 	return ret;
@@ -1280,7 +1280,7 @@ static int ntfs_ie_add_vcn(INDEX_ENTRY **ie)
 	INDEX_ENTRY *p, *old = *ie;
 	 
 	old->length = cpu_to_le16(le16_to_cpu(old->length) + sizeof(VCN));
-	p = realloc(old, le16_to_cpu(old->length));
+	p = ntfs_realloc(old, le16_to_cpu(old->length));
 	if (!p)
 		return STATUS_ERROR;
 	
@@ -1315,7 +1315,7 @@ static int ntfs_ih_insert(INDEX_HEADER *ih, INDEX_ENTRY *orig_ie, VCN new_vcn,
 	ntfs_ie_set_vcn(ie_node, old_vcn);
 	ret = STATUS_OK;
 out:	
-	free(ie);
+	ntfs_free(ie);
 	
 	return ret;
 }
@@ -1402,7 +1402,7 @@ static int ntfs_ib_insert(ntfs_index_context *icx, INDEX_ENTRY *ie, VCN new_vcn)
 	
 	err = STATUS_OK;
 err_out:	
-	free(ib);
+	ntfs_free(ib);
 	return err;
 }
 
@@ -1424,7 +1424,7 @@ static int ntfs_ib_split(ntfs_index_context *icx, INDEX_BLOCK *ib)
 		return STATUS_ERROR;
 	
 	median  = ntfs_ie_get_median(&ib->index);
-	new_vcn = ntfs_ibm_get_free(icx);
+	new_vcn = ntfs_ibm_get_ntfs_free(icx);
 	if (new_vcn == -1)
 		return STATUS_ERROR;
 	
@@ -1555,7 +1555,7 @@ int ntfs_index_add_filename(ntfs_inode *ni, FILE_NAME_ATTR *fn, MFT_REF mref)
 	ntfs_index_ctx_put(icx);
 	errno = err;
 out:
-	free(ie);
+	ntfs_free(ie);
 	return ret;
 }
 
@@ -1596,7 +1596,7 @@ static int ntfs_ih_takeout(ntfs_index_context *icx, INDEX_HEADER *ih,
 
 	ret = ntfs_ie_add(icx, ie_roam);
 out:
-	free(ie_roam);
+	ntfs_free(ie_roam);
 	return ret;
 }
 
@@ -1690,7 +1690,7 @@ static int ntfs_index_rm_leaf(ntfs_index_context *icx)
 ok:	
 	ret = STATUS_OK;
 out:
-	free(ib);
+	ntfs_free(ib);
 	return ret;
 }
 
@@ -1796,9 +1796,9 @@ descend:
 
 	ret = STATUS_OK;
 out2:
-	free(ie);
+	ntfs_free(ie);
 out:
-	free(ib);
+	ntfs_free(ib);
 	return ret;
 }
 
@@ -1987,12 +1987,12 @@ static INDEX_ENTRY *ntfs_index_walk_up(INDEX_ENTRY *ie,
 
 					/* we have reached the root */
 
-				free(ictx->ib);
+				ntfs_free(ictx->ib);
 				ictx->ib = (INDEX_BLOCK*)NULL;
 				ictx->is_in_root = TRUE;
 				/* a new search context is to be allocated */
 				if (ictx->actx)
-					free(ictx->actx);
+					ntfs_free(ictx->actx);
 				ictx->ir = ntfs_ir_lookup(ictx->ni,
 					ictx->name, ictx->name_len,
 					&ictx->actx);

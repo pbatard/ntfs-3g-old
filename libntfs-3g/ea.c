@@ -209,7 +209,7 @@ int ntfs_get_ntfs_ea(ntfs_inode *ni, char *value, size_t size)
 		if (ea_buf) {
 			if (value && (ea_size <= (s64)size))
 				memcpy(value, ea_buf, ea_size);
-			free(ea_buf);
+			ntfs_free(ea_buf);
 			res = ea_size;
 		} else {
 			ntfs_log_error("Failed to read EA from inode %lld\n",
@@ -324,7 +324,7 @@ int ntfs_set_ntfs_ea(ntfs_inode *ni, const char *value, size_t size, int flags)
 				res = -errno;
 			}
 			if (old_ea_info)
-				free(old_ea_info);
+				ntfs_free(old_ea_info);
 		} else {
 			errno = EINVAL;
 			res = -errno;
@@ -383,7 +383,7 @@ int ntfs_remove_ntfs_ea(ntfs_inode *ni)
 						" EA_INFORMATION from inode %lld\n",
 						(long long)ni->mft_no);
 				}
-				free(old_ea_info);
+				ntfs_free(old_ea_info);
 				ntfs_attr_close(na);
 			} else {
 				/* EA_INFORMATION present, but no EA */
@@ -428,14 +428,14 @@ int ntfs_ea_check_wsldev(ntfs_inode *ni, dev_t *rdevp)
 
 	res = -EOPNOTSUPP;
 	bufsize = 256; /* expected to be enough */
-	buf = (char*)malloc(bufsize);
+	buf = (char*)ntfs_malloc(bufsize);
 	if (buf) {
 		lth = ntfs_get_ntfs_ea(ni, buf, bufsize);
 			/* retry if short buf */
 		if (lth > bufsize) {
-			free(buf);
+			ntfs_free(buf);
 			bufsize = lth;
-			buf = (char*)malloc(bufsize);
+			buf = (char*)ntfs_malloc(bufsize);
 			if (buf)
 				lth = ntfs_get_ntfs_ea(ni, buf, bufsize);
 		}
@@ -463,7 +463,7 @@ int ntfs_ea_check_wsldev(ntfs_inode *ni, dev_t *rdevp)
 			res = 0;
 		}
 	}
-	free(buf);
+	ntfs_free(buf);
 	return (res);
 }
 

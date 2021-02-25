@@ -27,6 +27,7 @@
 #include "volume.h"
 #include "unistr.h"
 #include "logging.h"
+#include "misc.h"
 #include "dir.h"
 
 #include "driver.h"
@@ -245,7 +246,7 @@ NtfsUnmount(EFI_FS* FileSystem)
 	ntfs_umount(FileSystem->NtfsVolume, FALSE);
 
 	PrintInfo(L"Unmounted volume '%s'\n", FileSystem->NtfsVolumeLabel);
-	free(FileSystem->NtfsVolumeLabel);
+	ntfs_free(FileSystem->NtfsVolumeLabel);
 	FileSystem->NtfsVolumeLabel = NULL;
 	FileSystem->MountCount = 0;
 	FileSystem->TotalRefCount = 0;
@@ -323,7 +324,7 @@ NtfsOpen(EFI_NTFS_FILE* File)
 			return ErrnoToEfiStatus();
 		}
 		File->NtfsInode = ntfs_pathname_to_inode(File->FileSystem->NtfsVolume, NULL, path);
-		free(path);
+		ntfs_free(path);
 	}
 	if (File->NtfsInode == NULL)
 		return EFI_NOT_FOUND;
@@ -460,7 +461,7 @@ NtfsGetInfo(EFI_FILE_INFO* Info, VOID* NtfsVolume, CONST CHAR16* Path,
 			return ErrnoToEfiStatus();
 		}
 		ni = ntfs_pathname_to_inode(NtfsVolume, NULL, path);
-		free(path);
+		ntfs_free(path);
 	} else {
 		ni = ntfs_inode_open(NtfsVolume, MRef);
 	}
@@ -507,7 +508,7 @@ NtfsSetInfo(EFI_FILE_INFO* Info, VOID* NtfsVolume, CONST CHAR16* Path)
 		return ErrnoToEfiStatus();
 	}
 	ni = ntfs_pathname_to_inode(NtfsVolume, NULL, path);
-	free(path);
+	ntfs_free(path);
 	if (ni == NULL)
 		return EFI_NOT_FOUND;
 

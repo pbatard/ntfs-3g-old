@@ -108,7 +108,7 @@ static runlist_element *ntfs_rl_realloc(runlist_element *rl, int old_size,
 	new_size = (new_size * sizeof(runlist_element) + 0xfff) & ~0xfff;
 	if (old_size == new_size)
 		return rl;
-	return realloc(rl, new_size);
+	return ntfs_realloc(rl, new_size);
 }
 
 /*
@@ -633,7 +633,7 @@ static runlist_element *ntfs_runlists_merge_i(runlist_element *drl,
 		ntfs_log_perror("Merge failed");
 		return drl;
 	}
-	free(srl);
+	ntfs_free(srl);
 	if (marker) {
 		ntfs_log_debug("Triggering marker code.\n");
 		for (ds = dend; drl[ds].length; ds++)
@@ -836,10 +836,10 @@ static runlist_element *ntfs_mapping_pairs_decompress_i(const ntfs_volume *vol,
 			runlist_element *rl2;
 
 			rlsize += 0x1000;
-			rl2 = realloc(rl, rlsize);
+			rl2 = ntfs_realloc(rl, rlsize);
 			if (!rl2) {
 				int eo = errno;
-				free(rl);
+				ntfs_free(rl);
 				errno = eo;
 				return NULL;
 			}
@@ -997,14 +997,14 @@ mpa_err:
 	if (old_rl)
 		return old_rl;
 	err = errno;
-	free(rl);
+	ntfs_free(rl);
 	ntfs_log_debug("Failed to merge runlists.\n");
 	errno = err;
 	return NULL;
 io_error:
 	ntfs_log_debug("Corrupt attribute.\n");
 err_out:
-	free(rl);
+	ntfs_free(rl);
 	errno = EIO;
 	return NULL;
 }
@@ -1688,7 +1688,7 @@ int ntfs_rl_truncate(runlist **arl, const VCN start_vcn)
 /*	
 	 if (!is_end) {
 		size_t new_size = (rl - *arl + 1) * sizeof(runlist_element);
-		rl = realloc(*arl, new_size);
+		rl = ntfs_realloc(*arl, new_size);
 		if (rl)
 			*arl = rl;
 	}
@@ -1944,7 +1944,7 @@ static void test_rl_pure_test(int test, BOOL contig, BOOL multi, int vcn, int le
 	printf("Test %2d ----------\n", test);
 	res = test_rl_runlists_merge(dst, src);
 
-	free(res);
+	ntfs_free(res);
 }
 
 /**
@@ -2070,7 +2070,7 @@ static void test_rl_zero(void)
 	if (!jim)
 		return;
 
-	free(jim);
+	ntfs_free(jim);
 }
 
 /**
@@ -2106,7 +2106,7 @@ static void test_rl_frag_combine(ntfs_volume *vol, ATTR_RECORD *attr1, ATTR_RECO
 
 	run1 = test_rl_runlists_merge(run1, run3);
 
-	free(run1);
+	ntfs_free(run1);
 }
 
 /**
@@ -2150,9 +2150,9 @@ static void test_rl_frag(char *test)
 		printf("Frag: No such test '%s'\n", test);
 
 out:
-	free(attr1);
-	free(attr2);
-	free(attr3);
+	ntfs_free(attr1);
+	ntfs_free(attr2);
+	ntfs_free(attr3);
 }
 
 /**

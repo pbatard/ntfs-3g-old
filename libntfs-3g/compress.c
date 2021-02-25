@@ -442,7 +442,7 @@ static unsigned int ntfs_compress_block(const char *inbuf, const int bufsize,
 
 	/* Free the compression context and return the total number of bytes
 	 * written to 'outbuf'.  */
-	free(pctx);
+	ntfs_free(pctx);
 	return (xout);
 }
 
@@ -776,7 +776,7 @@ s64 ntfs_compressed_attr_pread(ntfs_attr *na, s64 pos, s64 count, void *b)
 	/* Need a temporary buffer for each uncompressed block. */
 	dest = (u8*)ntfs_malloc(cb_size);
 	if (!dest) {
-		free(cb);
+		ntfs_free(cb);
 		return -1;
 	}
 	/*
@@ -805,8 +805,8 @@ do_next_cb:
 	/* Check whether the compression block is sparse. */
 	rl = ntfs_attr_find_vcn(na, vcn);
 	if (!rl || rl->lcn < LCN_HOLE) {
-		free(cb);
-		free(dest);
+		ntfs_free(cb);
+		ntfs_free(dest);
 		if (total)
 			return total;
 		/* FIXME: Do we want EIO or the error code? (AIA) */
@@ -860,8 +860,8 @@ do_next_cb:
 				na->initialized_size = tinitialized_size;
 				na->ni->flags |= compression;
 				na->data_flags = data_flags;
-				free(cb);
-				free(dest);
+				ntfs_free(cb);
+				ntfs_free(dest);
 				if (total)
 					return total;
 				errno = err;
@@ -920,8 +920,8 @@ do_next_cb:
 				na->initialized_size = tinitialized_size;
 				na->ni->flags |= compression;
 				na->data_flags = data_flags;
-				free(cb);
-				free(dest);
+				ntfs_free(cb);
+				ntfs_free(dest);
 				if (total)
 					return total;
 				errno = err;
@@ -943,8 +943,8 @@ do_next_cb:
 		decompsz = ((ofs + to_read - 1) | (NTFS_SB_SIZE - 1)) + 1;
 		if (ntfs_decompress(dest, decompsz, cb, cb_size) < 0) {
 			err = errno;
-			free(cb);
-			free(dest);
+			ntfs_free(cb);
+			ntfs_free(dest);
 			if (total)
 				return total;
 			errno = err;
@@ -960,8 +960,8 @@ do_next_cb:
 	if (nr_cbs)
 		goto do_next_cb;
 	/* We no longer need the buffers. */
-	free(cb);
-	free(dest);
+	ntfs_free(cb);
+	ntfs_free(dest);
 	/* Return number of bytes read. */
 	return total + total2;
 }
@@ -1147,7 +1147,7 @@ static s32 ntfs_comp_set(ntfs_attr *na, runlist_element *rl,
 		} else
 			if (!fail)
 				written = 0;
-		free(outbuf);
+		ntfs_free(outbuf);
 	}
 	return (written);
 }
@@ -1223,7 +1223,7 @@ static BOOL valid_compressed_run(ntfs_attr *na, runlist_element *rl,
  *
  */
 
-static int ntfs_compress_overwr_free(ntfs_attr *na, runlist_element *rl,
+static int ntfs_compress_overwr_ntfs_free(ntfs_attr *na, runlist_element *rl,
 			s32 usedcnt, s32 freecnt, VCN *update_from)
 {
 	BOOL beginhole;
@@ -1435,7 +1435,7 @@ static int ntfs_compress_overwr_free(ntfs_attr *na, runlist_element *rl,
  *	Returns zero unless some error occurred (described by errno)
  */
 
-static int ntfs_compress_free(ntfs_attr *na, runlist_element *rl,
+static int ntfs_compress_ntfs_free(ntfs_attr *na, runlist_element *rl,
 				s64 used, s64 reserved, BOOL appending,
 				VCN *update_from)
 {
@@ -1475,7 +1475,7 @@ static int ntfs_compress_free(ntfs_attr *na, runlist_element *rl,
 		if (!((freevcn + freecnt)
 			    & (na->compression_block_clusters - 1))) {
 			if (!appending)
-				res = ntfs_compress_overwr_free(na,rl,
+				res = ntfs_compress_overwr_ntfs_free(na,rl,
 						usedcnt,freecnt,update_from);
 			else {
 				freelength = rl->length - usedcnt;
@@ -1603,7 +1603,7 @@ static int ntfs_read_append(ntfs_attr *na, const runlist_element *rl,
 				memcpy(&outbuf[pos],b,to_write);
 				fail = 0;
 			}
-			free(compbuf);
+			ntfs_free(compbuf);
 		}
 	}
 	return (fail);
@@ -1630,7 +1630,7 @@ static s32 ntfs_flush(ntfs_attr *na, runlist_element *rl, s64 offs,
 		if (written == -1)
 			compress = FALSE;
 		if ((written >= 0)
-		   && ntfs_compress_free(na,rl,offs + written,
+		   && ntfs_compress_ntfs_free(na,rl,offs + written,
 				offs + na->compression_block_size, appending,
 				update_from))
 			written = -1;
@@ -1784,7 +1784,7 @@ s64 ntfs_compressed_pwrite(ntfs_attr *na, runlist_element *wrl, s64 wpos,
 					done = TRUE;
 				}
 			}
-		free(outbuf);
+		ntfs_free(outbuf);
 		}
 	} else {
 		if (compress && !fail) {
@@ -1810,7 +1810,7 @@ s64 ntfs_compressed_pwrite(ntfs_attr *na, runlist_element *wrl, s64 wpos,
 				 */
 					if ((written >= 0)
 						/* free the unused clusters */
-				  	  && !ntfs_compress_free(na,brl,
+				  	  && !ntfs_compress_ntfs_free(na,brl,
 						    written + roffs,
 						    na->compression_block_size
 						         + roffs,
@@ -1819,7 +1819,7 @@ s64 ntfs_compressed_pwrite(ntfs_attr *na, runlist_element *wrl, s64 wpos,
 						written = to_write;
 					}
 				}
-				free(inbuf);
+				ntfs_free(inbuf);
 			}
 		}
 		if (!done) {
@@ -1920,7 +1920,7 @@ int ntfs_compressed_close(ntfs_attr *na, runlist_element *wrl, s64 offs,
 							to_read, inbuf);
 					if ((written >= 0)
 					/* free the unused clusters */
-					    && !ntfs_compress_free(na,brl,
+					    && !ntfs_compress_ntfs_free(na,brl,
 							written + roffs,
 							na->compression_block_size + roffs,
 							TRUE, update_from)) {
@@ -1932,7 +1932,7 @@ int ntfs_compressed_close(ntfs_attr *na, runlist_element *wrl, s64 offs,
 				}
 			} else
 				done = TRUE;
-			free(inbuf);
+			ntfs_free(inbuf);
 		}
 	}
 	if (done && !valid_compressed_run(na,wrl,TRUE,"end compressed close"))

@@ -481,7 +481,7 @@ int ntfs_log_handler_uefi(const char* function __attribute__((unused)), const ch
 			ascii_format[i] = 'a';
 
 	ret = AsciiVSPrint(logbuf, LOG_LINE_LEN, ascii_format, args);
-	free(ascii_format);
+	ntfs_free(ascii_format);
 	if (ret > 0)
 		ret = AsciiPrint("%a%a", ntfs_log_get_prefix(level), logbuf);
 	return (int)ret;

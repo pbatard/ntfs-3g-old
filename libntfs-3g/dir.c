@@ -482,7 +482,7 @@ descend_into_child_node:
 		if (rc)
 			continue;
 		mref = le64_to_cpu(ie->indexed_file);
-		free(ia);
+		ntfs_free(ia);
 		ntfs_attr_close(ia_na);
 		ntfs_attr_put_search_ctx(ctx);
 		return mref;
@@ -508,7 +508,7 @@ descend_into_child_node:
 		errno = EIO;
 		goto close_err_out;
 	}
-	free(ia);
+	ntfs_free(ia);
 	ntfs_attr_close(ia_na);
 	ntfs_attr_put_search_ctx(ctx);
 	/*
@@ -530,7 +530,7 @@ eo_put_err_out:
 	return -1;
 close_err_out:
 	eo = errno;
-	free(ia);
+	ntfs_free(ia);
 	ntfs_attr_close(ia_na);
 	goto eo_put_err_out;
 }
@@ -592,7 +592,7 @@ u64 ntfs_inode_lookup_by_mbsname(ntfs_inode *dir_ni, const char *name)
 					ntfs_enter_cache(dir_ni->vol->lookup_cache,
 							GENERIC(&item),
 							lookup_cache_compare);
-					free(uname);
+					ntfs_free(uname);
 				} else
 					inum = (s64)-1;
 			}
@@ -608,7 +608,7 @@ u64 ntfs_inode_lookup_by_mbsname(ntfs_inode *dir_ni, const char *name)
 				inum = (s64)-1;
 		}
 		if (cached_name)
-			free(cached_name);
+			ntfs_free(cached_name);
 	} else
 		inum = (s64)-1;
 	return (inum);
@@ -646,7 +646,7 @@ void ntfs_inode_update_mbsname(ntfs_inode *dir_ni, const char *name, u64 inum)
 			if (cached)
 				cached->inum = inum;
 			if (cached_name)
-				free(cached_name);
+				ntfs_free(cached_name);
 		}
 	}
 #endif
@@ -823,7 +823,7 @@ ntfs_inode *ntfs_pathname_to_inode(ntfs_volume *vol, ntfs_inode *parent,
 			goto close;
 		}
 	
-		free(unicode);
+		ntfs_free(unicode);
 		unicode = NULL;
 
 		if (q) *q++ = PATH_SEP; /* JPA */
@@ -839,8 +839,8 @@ close:
 		if (ntfs_inode_close(ni) && !err)
 			err = errno;
 out:
-	free(ascii);
-	free(unicode);
+	ntfs_free(ascii);
+	ntfs_free(unicode);
 	if (err)
 		errno = err;
 	return result;
@@ -1021,7 +1021,7 @@ static int ntfs_filldir(ntfs_inode *dir_ni, s64 *pos, u8 ivcn_bits,
 					fn->file_name_length,
 					fn->file_name_type, *pos,
 					mref, dt_type);
-				free(loname);
+				ntfs_free(loname);
 			} else
 				res = -1;
 		}
@@ -1424,8 +1424,8 @@ EOD:
 	/* We are finished, set *pos to EOD. */
 	*pos = i_size + vol->mft_record_size;
 done:
-	free(ia);
-	free(bmp);
+	ntfs_free(ia);
+	ntfs_free(bmp);
 	if (bmp_na)
 		ntfs_attr_close(bmp_na);
 	if (ia_na)
@@ -1439,8 +1439,8 @@ err_out:
 	ntfs_log_trace("failed.\n");
 	if (ctx)
 		ntfs_attr_put_search_ctx(ctx);
-	free(ia);
-	free(bmp);
+	ntfs_free(ia);
+	ntfs_free(bmp);
 	if (bmp_na)
 		ntfs_attr_close(bmp_na);
 	if (ia_na)
@@ -1620,11 +1620,11 @@ static ntfs_inode *__ntfs_create(ntfs_inode *dir_ni, le32 securid,
 		if (ntfs_attr_add(ni, AT_INDEX_ROOT, NTFS_INDEX_I30, 4,
 				(u8*)ir, ir_len)) {
 			err = errno;
-			free(ir);
+			ntfs_free(ir);
 			ntfs_log_error("Failed to add INDEX_ROOT attribute.\n");
 			goto err_out;
 		}
-		free(ir);
+		ntfs_free(ir);
 	} else {
 		INTX_FILE *data;
 		int data_len;
@@ -1695,11 +1695,11 @@ static ntfs_inode *__ntfs_create(ntfs_inode *dir_ni, le32 securid,
 				data_len)) {
 			err = errno;
 			ntfs_log_error("Failed to add DATA attribute.\n");
-			free(data);
+			ntfs_free(data);
 			goto err_out;
 		}
 		rollback_data = 1;
-		free(data);
+		ntfs_free(data);
 	}
 	/* Create FILE_NAME attribute. */
 	fn_len = sizeof(FILE_NAME_ATTR) + name_len * sizeof(ntfschar);
@@ -1781,8 +1781,8 @@ static ntfs_inode *__ntfs_create(ntfs_inode *dir_ni, le32 securid,
 	}
 	ntfs_inode_mark_dirty(ni);
 	/* Done! */
-	free(fn);
-	free(si);
+	ntfs_free(fn);
+	ntfs_free(si);
 	ntfs_log_trace("Done.\n");
 	return ni;
 err_out:
@@ -1810,8 +1810,8 @@ err_out:
 	if (ntfs_mft_record_free(ni->vol, ni))
 		ntfs_log_error("Failed to free MFT record.  "
 				"Leaving inconsistent metadata. Run chkdsk.\n");
-	free(fn);
-	free(si);
+	ntfs_free(fn);
+	ntfs_free(si);
 	errno = err;
 	return NULL;
 }
@@ -2136,7 +2136,7 @@ search:
 						"Leaving inconsistent metadata.\n");
 				continue;
 			}
-			free(rl);
+			ntfs_free(rl);
 		}
 	}
 	if (errno != ENOENT) {
@@ -2159,7 +2159,7 @@ search:
 					"Leaving inconsistent metadata.\n");
 		}
 	}
-	free(ni->extent_nis);
+	ntfs_free(ni->extent_nis);
 	ni->nr_extents = 0;
 	ni->extent_nis = (ntfs_inode**)NULL;
 #else
@@ -2283,13 +2283,13 @@ static int ntfs_link_i(ntfs_inode *ni, ntfs_inode *dir_ni, const ntfschar *name,
 			ni->mrec->link_count) + 1);
 	/* Done! */
 	ntfs_inode_mark_dirty(ni);
-	free(fn);
+	ntfs_free(fn);
 	ntfs_log_trace("Done.\n");
 	return 0;
 rollback_failed:
 	ntfs_log_error("Rollback failed. Leaving inconsistent metadata.\n");
 err_out:
-	free(fn);
+	ntfs_free(fn);
 	errno = err;
 	return -1;
 }
@@ -2497,7 +2497,7 @@ int ntfs_get_ntfs_dos_name(ntfs_inode *ni, ntfs_inode *dir_ni,
 			else
 				if (size && (outsize > (int)size))
 					outsize = -ERANGE;
-			free(outname);
+			ntfs_free(outname);
 		}
 	} else {
 		if (doslen == 0)
@@ -2767,7 +2767,7 @@ int ntfs_set_ntfs_dos_name(ntfs_inode *ni, ntfs_inode *dir_ni,
 		if (!longlen)
 			errno = ENOENT;
 	}
-	free(shortname);
+	ntfs_free(shortname);
 	if (!closed) {
 		ntfs_inode_close_in_dir(ni,dir_ni);
 		ntfs_inode_close(dir_ni);

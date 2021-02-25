@@ -355,8 +355,8 @@ u32 ntfs_ucsnlen(const ntfschar *s, u32 maxlen)
  * @maxlen:	maximum length of string @s
  *
  * Return a pointer to a new little endian Unicode string which is a duplicate
- * of the string s.  Memory for the new string is obtained with ntfs_malloc(3),
- * and can be freed with free(3).
+ * of the string s.  Memory for the new string is obtained with ntfs_malloc(),
+ * and can be freed with ntfs_free().
  *
  * A maximum of @maxlen Unicode characters are copied and a terminating
  * (ntfschar)'\0' little endian Unicode character is added.
@@ -659,7 +659,7 @@ static int ntfs_utf16_to_utf8(const ntfschar *ins, const int ins_len,
 		if(new_outs_len >= 0 && new_outs != NULL) {
 			if(original_outs_value != *outs) {
 				// We have allocated outs ourselves.
-				free(*outs);
+				ntfs_free(*outs);
 				*outs = new_outs;
 				t = *outs + new_outs_len;
 			}
@@ -668,7 +668,7 @@ static int ntfs_utf16_to_utf8(const ntfschar *ins, const int ins_len,
 				memset(*outs, 0, original_outs_len);
 				strncpy(*outs, new_outs, original_outs_len-1);
 				t = *outs + original_outs_len;
-				free(new_outs);
+				ntfs_free(new_outs);
 			}
 		}
 		else {
@@ -850,7 +850,7 @@ static int ntfs_utf8_to_utf16(const char *ins, ntfschar **outs)
 			if (m < 0) {
 				/* do not leave space allocated if failed */
 				if (allocated) {
-					free(*outs);
+					ntfs_free(*outs);
 					*outs = (ntfschar*)NULL;
 				}
 				goto fail;
@@ -873,7 +873,7 @@ fail:
 #if defined(__APPLE__) || defined(__DARWIN__)
 #ifdef ENABLE_NFCONV
 	if(new_ins != NULL)
-		free(new_ins);
+		ntfs_free(new_ins);
 #endif /* ENABLE_NFCONV */
 #endif /* defined(__APPLE__) || defined(__DARWIN__) */
 	return ret;
@@ -890,7 +890,7 @@ fail:
  * @ins_len into the multibyte string format dictated by the current locale.
  *
  * If *@outs is NULL, the function allocates the string and the caller is
- * responsible for calling free(*@outs); when finished with it.
+ * responsible for calling ntfs_free(*@outs); when finished with it.
  *
  * On success the function returns the number of bytes written to the output
  * string *@outs (>= 0), not counting the terminating NULL byte. If the output
@@ -959,7 +959,7 @@ int ntfs_ucstombs(const ntfschar *ins, const int ins_len, char **outs,
 				goto err_out;
 			memcpy(tc, mbs, mbs_len);
 			mbs_len = (mbs_len + 64) & ~63;
-			free(mbs);
+			ntfs_free(mbs);
 			mbs = tc;
 		}
 		/* Convert the LE Unicode character to a CPU wide character. */
@@ -997,7 +997,7 @@ int ntfs_ucstombs(const ntfschar *ins, const int ins_len, char **outs,
 err_out:
 	if (mbs != *outs) {
 		int eo = errno;
-		free(mbs);
+		ntfs_free(mbs);
 		errno = eo;
 	}
 #else /* MB_CUR_MAX */
@@ -1017,7 +1017,7 @@ err_out:
  * corresponding little endian, 2-byte Unicode string.
  *
  * The function allocates the string and the caller is responsible for calling 
- * free(*@outs); when finished with it.
+ * ntfs_free(*@outs); when finished with it.
  *
  * On success the function returns the number of Unicode characters written to
  * the output string *@outs (>= 0), not counting the terminating Unicode NULL
@@ -1143,7 +1143,7 @@ int ntfs_mbstoucs(const char *ins, ntfschar **outs)
 	*outs = ucs;
 	return o;
 err_out:
-	free(ucs);
+	ntfs_free(ucs);
 #else /* MB_CUR_MAX */
 	errno = EILSEQ;
 #endif /* MB_CUR_MAX */
@@ -1198,7 +1198,7 @@ char *ntfs_uppercase_mbs(const char *low,
 			}
 		} while (n > 0);
 		if (n < 0) {
-			free(upp);
+			ntfs_free(upp);
 			upp = (char*)NULL;
 			errno = EILSEQ;
 		}
@@ -1460,7 +1460,7 @@ ntfschar *ntfs_str2ucs(const char *s, int *len)
 		return NULL;
 	}
 	if (*len > NTFS_MAX_NAME_LEN) {
-		free(ucs);
+		ntfs_free(ucs);
 		errno = ENAMETOOLONG;
 		return NULL;
 	}
@@ -1482,7 +1482,7 @@ ntfschar *ntfs_str2ucs(const char *s, int *len)
 void ntfs_ucsfree(ntfschar *ucs)
 {
 	if (ucs && (ucs != AT_UNNAMED))
-		free(ucs);
+		ntfs_free(ucs);
 }
 
 /*
@@ -1738,7 +1738,7 @@ int ntfs_macosx_normalize_utf8(const char *utf8_string, char **target,
 				ntfs_log_error("Could not perform UTF-8 "
 					"conversion of normalized "
 					"CFMutableString.\n");
-				free(result);
+				ntfs_free(result);
 				result = NULL;
 			}
 		}

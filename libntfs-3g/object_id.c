@@ -496,7 +496,7 @@ int ntfs_get_ntfs_object_id(ntfs_inode *ni, char *value, size_t size)
 				errno = EOPNOTSUPP;
 				full_size = 0;
 			}
-			free(objectid_attr);
+			ntfs_free(objectid_attr);
 		} else
 			errno = ENODATA;
 	}

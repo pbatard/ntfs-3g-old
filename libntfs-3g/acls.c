@@ -1295,7 +1295,7 @@ struct POSIX_SECURITY *ntfs_replace_acl(const struct POSIX_SECURITY *oldpxdesc,
 		posix_header(newpxdesc, oldpxdesc->mode);
 		if (!ntfs_valid_posix(newpxdesc)) {
 			/* do not log, this is an application error */
-			free(newpxdesc);
+			ntfs_free(newpxdesc);
 			newpxdesc = (struct POSIX_SECURITY*)NULL;
 			errno = EINVAL;
 		}
@@ -1460,7 +1460,7 @@ struct POSIX_SECURITY *ntfs_build_inherited_posix(
 		if (!ntfs_valid_posix(pydesc)) {
 			ntfs_log_error("Error building an inherited Posix desc\n");
 			errno = EIO;
-			free(pydesc);
+			ntfs_free(pydesc);
 			pydesc = (struct POSIX_SECURITY*)NULL;
 		}
 	} else
@@ -2832,7 +2832,7 @@ char *ntfs_build_descr_posix(struct MAPPING* const mapping[],
 			    const_cpu_to_le32(sizeof(SECURITY_DESCRIPTOR_RELATIVE));
 		} else {
 			/* ACL failure (errno set) or overflow */
-			free(newattr);
+			ntfs_free(newattr);
 			newattr = (char*)NULL;
 			if (aclsz) {
 				/* hope error was detected before overflowing */
@@ -2923,7 +2923,7 @@ char *ntfs_build_descr(mode_t mode,
 			    const_cpu_to_le32(sizeof(SECURITY_DESCRIPTOR_RELATIVE));
 		} else {
 			/* hope error was detected before overflowing */
-			free(newattr);
+			ntfs_free(newattr);
 			newattr = (char*)NULL;
 			ntfs_log_error("Security descriptor is longer than expected\n");
 			errno = EIO;
@@ -4070,7 +4070,7 @@ struct POSIX_SECURITY *ntfs_build_permissions_posix(
 	if (k > l) {
 		ntfs_log_error("Posix descriptor is longer than expected\n");
 		errno = EIO;
-		free(pxdesc);
+		ntfs_free(pxdesc);
 		pxdesc = (struct POSIX_SECURITY*)NULL;
 	} else {
 		pxdesc->acccnt = k;
@@ -4102,7 +4102,7 @@ struct POSIX_SECURITY *ntfs_build_permissions_posix(
 	if (pxdesc && !ntfs_valid_posix(pxdesc)) {
 		ntfs_log_error("Invalid Posix descriptor built\n");
                 errno = EIO;
-                free(pxdesc);
+                ntfs_free(pxdesc);
                 pxdesc = (struct POSIX_SECURITY*)NULL;
 	}
 	return (pxdesc);
@@ -4255,11 +4255,11 @@ static struct MAPLIST *getmappingitem(FILEREADER reader, void *fileid,
 			else {
 				ntfs_log_early_error("Bad mapping item \"%s\"\n",
 					item->maptext);
-				free(item);
+				ntfs_free(item);
 				item = (struct MAPLIST*)NULL;
 			}
 		} else {
-			free(item);	/* free unused item */
+			ntfs_free(item);	/* free unused item */
 			item = (struct MAPLIST*)NULL;
 		}
 	}
@@ -4332,21 +4332,21 @@ void ntfs_free_mapping(struct MAPPING *mapping[])
 		while (group && (group->sid != user->sid))
 			group = group->next;
 		if (!group)
-			free(user->sid);
+			ntfs_free(user->sid);
 			/* free group list if any */
 		if (user->grcnt)
-			free(user->groups);
+			ntfs_free(user->groups);
 			/* unchain item and free */
 		mapping[MAPUSERS] = user->next;
-		free(user);
+		ntfs_free(user);
 	}
 		/* free group mappings */
 	while (mapping[MAPGROUPS]) {
 		group = mapping[MAPGROUPS];
-		free(group->sid);
+		ntfs_free(group->sid);
 			/* unchain item and free */
 		mapping[MAPGROUPS] = group->next;
-		free(group);
+		ntfs_free(group);
 	}
 }
 
@@ -4400,7 +4400,7 @@ struct MAPPING *ntfs_do_user_mapping(struct MAPLIST *firstitem)
 			if (sid && ntfs_known_group_sid(sid)) {
 				ntfs_log_error("Bad user SID %s\n",
 					item->sidstr);
-				free(sid);
+				ntfs_free(sid);
 				sid = (SID*)NULL;
 			}
 			if (sid && !item->uidstr[0] && !item->gidstr[0]

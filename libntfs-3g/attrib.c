@@ -232,7 +232,7 @@ s64 ntfs_get_attribute_value(const ntfs_volume *vol,
 			 */
 			intbuf = ntfs_malloc(rl[i].length << vol->cluster_size_bits);
 			if (!intbuf) {
-				free(rl);
+				ntfs_free(rl);
 				return 0;
 			}
 			/*
@@ -262,13 +262,13 @@ s64 ntfs_get_attribute_value(const ntfs_volume *vol,
 					errno = EIO;
 				}
 #undef ESTR
-				free(rl);
-				free(intbuf);
+				ntfs_free(rl);
+				ntfs_free(intbuf);
 				return 0;
 			}
 			memcpy(b + total, intbuf, sle64_to_cpu(a->data_size) -
 					total);
-			free(intbuf);
+			ntfs_free(intbuf);
 			total = sle64_to_cpu(a->data_size);
 			break;
 		}
@@ -297,12 +297,12 @@ s64 ntfs_get_attribute_value(const ntfs_volume *vol,
 				errno = EIO;
 			}
 #undef ESTR
-			free(rl);
+			ntfs_free(rl);
 			return 0;
 		}
 		total += r;
 	}
-	free(rl);
+	ntfs_free(rl);
 	return total;
 }
 
@@ -520,8 +520,8 @@ out:
 put_err_out:
 	ntfs_attr_put_search_ctx(ctx);
 err_out:
-	free(newname);
-	free(na);
+	ntfs_free(newname);
+	ntfs_free(na);
 	na = NULL;
 	goto out;
 }
@@ -538,12 +538,12 @@ void ntfs_attr_close(ntfs_attr *na)
 	if (!na)
 		return;
 	if (NAttrNonResident(na) && na->rl)
-		free(na->rl);
+		ntfs_free(na->rl);
 	/* Don't release if using an internal constant. */
 	if (na->name != AT_UNNAMED && na->name != NTFS_INDEX_I30
 				&& na->name != STREAM_SDS)
-		free(na->name);
-	free(na);
+		ntfs_free(na->name);
+	ntfs_free(na);
 }
 
 /**
@@ -1240,7 +1240,7 @@ static int ntfs_attr_fill_zero(ntfs_attr *na, s64 pos, s64 count)
 	
 	ret = 0;
 err_free:	
-	free(buf);
+	ntfs_free(buf);
 err_out:
 	return ret;	
 }
@@ -2205,7 +2205,7 @@ retry:
 						written = to_write;
 				}
 				
-				free(cb);
+				ntfs_free(cb);
 			} else {
 				if (compressed) {
 					written = ntfs_compressed_pwrite(na,
@@ -2883,7 +2883,7 @@ static int ntfs_attr_find(const ATTR_TYPES type, const ntfschar *name,
 void ntfs_attr_name_free(char **name)
 {
 	if (*name) {
-		free(*name);
+		ntfs_free(*name);
 		*name = NULL;
 	}
 }
@@ -3519,7 +3519,7 @@ ntfs_attr_search_ctx *ntfs_attr_get_search_ctx(ntfs_inode *ni, MFT_RECORD *mrec)
 void ntfs_attr_put_search_ctx(ntfs_attr_search_ctx *ctx)
 {
 	// NOTE: save errno if it could change and function stays void!
-	free(ctx);
+	ntfs_free(ctx);
 }
 
 /**
@@ -4106,7 +4106,7 @@ int ntfs_attr_record_rm(ntfs_attr_search_ctx *ctx)
 	/* Post $ATTRIBUTE_LIST delete setup. */
 	if (type == AT_ATTRIBUTE_LIST) {
 		if (NInoAttrList(base_ni) && base_ni->attr_list)
-			free(base_ni->attr_list);
+			ntfs_free(base_ni->attr_list);
 		base_ni->attr_list = NULL;
 		NInoClearAttrList(base_ni);
 		NInoAttrListClearDirty(base_ni);
@@ -4159,7 +4159,7 @@ int ntfs_attr_record_rm(ntfs_attr_search_ctx *ctx)
 						"Couldn't free clusters from "
 						"attribute list runlist.\n");
 			}
-			free(al_rl);
+			ntfs_free(al_rl);
 		}
 		/* Remove attribute record itself. */
 		if (ntfs_attr_record_rm(ctx)) {
@@ -4950,7 +4950,7 @@ cluster_free_err_out:
 	NAttrClearFullyMapped(na);
 	na->allocated_size = na->data_size;
 	na->rl = NULL;
-	free(rl);
+	ntfs_free(rl);
 	errno = err;
 	return -1;
 }
@@ -5429,7 +5429,7 @@ static int ntfs_attr_make_resident(ntfs_attr *na, ntfs_attr_search_ctx *ctx)
 	}
 
 	/* Throw away the now unused runlist. */
-	free(na->rl);
+	ntfs_free(na->rl);
 	na->rl = NULL;
 
 	/* Update in-memory struct ntfs_attr. */
@@ -6085,7 +6085,7 @@ static int ntfs_non_resident_attr_shrink(ntfs_attr *na, const s64 newsize)
 			 * Failed to truncate the runlist, so just throw it
 			 * away, it will be mapped afresh on next use.
 			 */
-			free(na->rl);
+			ntfs_free(na->rl);
 			na->rl = NULL;
 			ntfs_log_trace("Eeek! Run list truncation failed.\n");
 			return -1;
@@ -6302,7 +6302,7 @@ static int ntfs_non_resident_attr_expand_i(ntfs_attr *na, const s64 newsize,
 			err = errno;
 			ntfs_log_perror("Run list merge failed");
 			ntfs_cluster_free_from_rl(vol, rl);
-			free(rl);
+			ntfs_free(rl);
 			errno = err;
 			return -1;
 		}
@@ -6389,7 +6389,7 @@ rollback:
 		 * Failed to truncate the runlist, so just throw it away, it
 		 * will be mapped afresh on next use.
 		 */
-		free(na->rl);
+		ntfs_free(na->rl);
 		na->rl = NULL;
 		ntfs_log_perror("Couldn't truncate runlist. Rollback failed");
 	} else {
@@ -6615,7 +6615,7 @@ static int stuff_hole(ntfs_attr *na, const s64 pos)
 				    != end_size))
 				ret = -1;
 			if (buf)
-				free(buf);
+				ntfs_free(buf);
 		} else
 			ret = -1;
 	}
@@ -6671,7 +6671,7 @@ void *ntfs_attr_readall(ntfs_inode *ni, const ATTR_TYPES type,
 	size = ntfs_attr_pread(na, 0, na->data_size, data);
 	if (size != na->data_size) {
 		ntfs_log_perror("ntfs_attr_pread failed");
-		free(data);
+		ntfs_free(data);
 		goto out;
 	}
 	ret = data;
@@ -6911,9 +6911,9 @@ s64 ntfs_attr_get_free_bits(ntfs_attr *na)
 			case 1:  nr_free += lut[*(buf + br - 1)];
 		}
 	}
-	free(buf);
+	ntfs_free(buf);
 out:
-	free(lut);
+	ntfs_free(lut);
 	if (!total || br < 0)
 		return -1;
 	return nr_free;

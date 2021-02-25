@@ -211,11 +211,12 @@ static int __ntfs_volume_release(ntfs_volume *v)
 	}
 
 	ntfs_free_lru_caches(v);
-	free(v->vol_name);
-	free(v->upcase);
-	if (v->locase) free(v->locase);
-	free(v->attrdef);
-	free(v);
+	ntfs_free(v->vol_name);
+	ntfs_free(v->upcase);
+	if (v->locase)
+		ntfs_free(v->locase);
+	ntfs_free(v->attrdef);
+	ntfs_free(v);
 
 	errno = err;
 	return errno ? -1 : 0;
@@ -228,7 +229,7 @@ static void ntfs_attr_setup_flag(ntfs_inode *ni)
 	si = ntfs_attr_readall(ni, AT_STANDARD_INFORMATION, AT_UNNAMED, 0, NULL);
 	if (si) {
 		ni->flags = si->file_attributes;
-		free(si);
+		ntfs_free(si);
 	}
 }
 
@@ -559,7 +560,7 @@ ntfs_volume *ntfs_volume_startup(struct ntfs_device *dev,
 	if (ntfs_boot_sector_parse(vol, bs) < 0)
 		goto error_exit;
 	
-	free(bs);
+	ntfs_free(bs);
 	bs = NULL;
 	/* Now set the device block size to the sector size. */
 	if (ntfs_device_block_size_set(vol->dev, vol->sector_size))
@@ -635,7 +636,7 @@ ntfs_volume *ntfs_volume_startup(struct ntfs_device *dev,
 	return vol;
 error_exit:
 	eo = errno;
-	free(bs);
+	ntfs_free(bs);
 	if (vol)
 		__ntfs_volume_release(vol);
 	errno = eo;
@@ -689,7 +690,7 @@ static int ntfs_volume_check_logfile(ntfs_volume *vol)
 		ntfs_log_error("Metadata kept in Windows cache, refused to mount.\n");
 		err = EPERM;
 	}
-	free(rp);
+	ntfs_free(rp);
 	ntfs_attr_close(na);
 out:	
 	if (ntfs_inode_close(ni))
@@ -751,7 +752,7 @@ out:
 		ntfs_inode_close(ni_hibr);
 		ni_hibr = NULL;
 	}
-	free(unicode);
+	ntfs_free(unicode);
 	return ni_hibr;
 }
 
@@ -814,7 +815,7 @@ int ntfs_volume_check_hiberfile(ntfs_volume *vol, int verbose)
 out:
 	if (na)
 		ntfs_attr_close(na);
-	free(buf);
+	ntfs_free(buf);
 	err = errno;
 	if (ntfs_inode_close(ni))
 		ntfs_error_set(&err);
@@ -869,7 +870,7 @@ static int fix_txf_data(ntfs_volume *vol)
 						 txf_data_size, txf_data)
 							!= txf_data_size))
 						res = -1;
-					free(txf_data);
+					ntfs_free(txf_data);
 				}
 			if (res)
 				ntfs_log_error("Failed to make $TXF_DATA resident\n");
@@ -1012,8 +1013,8 @@ ntfs_volume *ntfs_device_mount(struct ntfs_device *dev, ntfs_mount_flags flags)
 		}
 	}
 
-	free(m2);
-	free(m);
+	ntfs_free(m2);
+	ntfs_free(m);
 	m = m2 = NULL;
 
 	/* Now load the bitmap from $Bitmap. */
@@ -1065,7 +1066,7 @@ ntfs_volume *ntfs_device_mount(struct ntfs_device *dev, ntfs_mount_flags flags)
 	if (vol->upcase_len != na->data_size >> 1) {
 		vol->upcase_len = na->data_size >> 1;
 		/* Throw away default table. */
-		free(vol->upcase);
+		ntfs_free(vol->upcase);
 		vol->upcase = ntfs_malloc(na->data_size);
 		if (!vol->upcase)
 			goto error_exit;
@@ -1288,8 +1289,8 @@ error_exit:
 	eo = errno;
 	if (ctx)
 		ntfs_attr_put_search_ctx(ctx);
-	free(m);
-	free(m2);
+	ntfs_free(m);
+	ntfs_free(m2);
 	__ntfs_volume_release(vol);
 	errno = eo;
 	return NULL;
@@ -1492,8 +1493,8 @@ static int ntfs_mntent_check(const char *file, unsigned long *mnt_flags)
 		*mnt_flags |= NTFS_MF_READONLY;
 #endif
 exit:
-	free(real_file);
-	free(real_fsname);
+	ntfs_free(real_file);
+	ntfs_free(real_fsname);
 	if (err) {
 		errno = err;
 		return -1;
@@ -1543,9 +1544,9 @@ static int ntfs_mntent_check(const char *file, unsigned long *mnt_flags)
 	}
 	fclose(f);
 exit:
-	free(mnt);
-	free(real_file);
-	free(real_fsname);
+	ntfs_free(mnt);
+	ntfs_free(real_file);
+	ntfs_free(real_fsname);
 	if (err) {
 		errno = err;
 		return -1;
@@ -1963,7 +1964,7 @@ int ntfs_volume_rename(ntfs_volume *vol, const ntfschar *label, int label_len)
 
 	old_vol_name = vol->vol_name;
 	vol->vol_name = new_vol_name;
-	free(old_vol_name);
+	ntfs_free(old_vol_name);
 
 	err = 0;
 err_out:
