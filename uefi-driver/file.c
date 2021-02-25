@@ -77,7 +77,7 @@ FileOpen(EFI_FILE_HANDLE This, EFI_FILE_HANDLE* New,
 		return EFI_SUCCESS;
 	}
 
-	Path = AllocatePool(PATH_MAX * sizeof(CHAR16));
+	Path = AllocateZeroPool(PATH_MAX * sizeof(CHAR16));
 	if (Path == NULL) {
 		PrintError(L"Could not allocate path\n");
 		Status = EFI_OUT_OF_RESOURCES;
@@ -88,8 +88,7 @@ FileOpen(EFI_FILE_HANDLE This, EFI_FILE_HANDLE* New,
 	if (IS_PATH_DELIMITER(Name[0])) {
 		Len = 0;
 	} else {
-		Path[0] = PATH_CHAR;
-		SafeStrCpy(&Path[1], PATH_MAX - 1, File->Path);
+		SafeStrCpy(Path, PATH_MAX, File->Path);
 		Len = SafeStrLen(Path);
 		/* Add delimiter */
 		Path[Len++] = PATH_CHAR;
@@ -106,6 +105,9 @@ FileOpen(EFI_FILE_HANDLE This, EFI_FILE_HANDLE* New,
 
 	/* Clean the path by removing double delimiters and processing '.' and '..' */
 	CleanPath(Path);
+
+	/* Validate that our paths are non-empty and absolute */
+	FS_ASSERT(Path[0] == PATH_CHAR);
 
 	/* Allocate and initialise an instance of a file */
 	Status = NtfsCreateFile(&NewFile, File->FileSystem);
@@ -641,14 +643,7 @@ FileOpenVolume(EFI_SIMPLE_FILE_SYSTEM_PROTOCOL* This, EFI_FILE_HANDLE* Root)
 		goto out;
 	}
 
-	/* Open the root file (a NULL path opens root) */
-	Status = NtfsOpen(RootFile);
-	if (EFI_ERROR(Status)) {
-		PrintStatusError(Status, L"Could not open root file");
-		goto out;
-	}
-
-	/* Now setup the actual root path */
+	/* Setup the root path */
 	RootFile->Path = AllocateZeroPool(2 * sizeof(CHAR16));
 	if (RootFile->Path == NULL) {
 		Status = EFI_OUT_OF_RESOURCES;
@@ -657,6 +652,13 @@ FileOpenVolume(EFI_SIMPLE_FILE_SYSTEM_PROTOCOL* This, EFI_FILE_HANDLE* Root)
 	}
 	RootFile->Path[0] = PATH_CHAR;
 	RootFile->Basename = &RootFile->Path[1];
+
+	/* Open the root file */
+	Status = NtfsOpen(RootFile);
+	if (EFI_ERROR(Status)) {
+		PrintStatusError(Status, L"Could not open root file");
+		goto out;
+	}
 
 	/* Set the inital refcounts for both the file and the file system */
 	RootFile->RefCount = 1;
@@ -698,6 +700,8 @@ FSInstall(EFI_FS* This, EFI_HANDLE ControllerHandle)
 		PrintStatusError(Status, L"Could not install simple file system protocol");
 		return Status;
 	}
+
+	InitializeListHead(&FsListHead);
 
 	return EFI_SUCCESS;
 }

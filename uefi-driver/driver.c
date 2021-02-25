@@ -411,8 +411,6 @@ FSDriverInstall(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable)
 	/* Register the uninstall callback */
 	LoadedImage->Unload = FSDriverUninstall;
 
-	InitializeListHead(&FsListHead);
-
 	PrintDebug(L"FS driver installed.\n");
 	return EFI_SUCCESS;
 }

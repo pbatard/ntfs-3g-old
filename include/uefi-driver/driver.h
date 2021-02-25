@@ -92,6 +92,7 @@ typedef struct _EFI_NTFS_FILE {
 /* A file system instance */
 typedef struct _EFI_FS {
 	LIST_ENTRY                      *ForwardLink;
+	LIST_ENTRY                      *BackLink;
 	EFI_SIMPLE_FILE_SYSTEM_PROTOCOL  FileIoInterface;
 	EFI_BLOCK_IO_PROTOCOL           *BlockIo;
 	EFI_BLOCK_IO2_PROTOCOL          *BlockIo2;
@@ -102,6 +103,7 @@ typedef struct _EFI_FS {
 	VOID                            *NtfsVolume;
 	CHAR16                          *NtfsVolumeLabel;
 	INT64                            Offset;
+	INTN                             MountCount;
 	INTN                             TotalRefCount;
 } EFI_FS;
 

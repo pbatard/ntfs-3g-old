@@ -240,7 +240,7 @@ VOID CleanPath(CHAR16* Path)
 			SepCount++;
 
 	/* Allocate an array of pointers large enough */
-	SepPos = AllocatePool(SepCount * sizeof(CHAR16*));
+	SepPos = AllocatePool((SepCount + 1) * sizeof(CHAR16*));
 	if (SepPos == NULL)
 		return;
 
@@ -291,6 +291,10 @@ VOID CleanPath(CHAR16* Path)
 	for (i = 0, p = Path; *p; p++)
 		if (*p != BLANK_CHAR && (*p != PATH_CHAR || i == 0 || Path[i - 1] != PATH_CHAR))
 			Path[i++] = *p;
+
+	/* Make sure we don't end up with an empty string */
+	if (i == 0)
+		Path[i++] = PATH_CHAR;
 	Path[i] = 0;
 
 	/* Remove any trailing PATH_CHAR (but keep '/' as is) */

@@ -95,6 +95,10 @@ NtfsMount(EFI_FS* FileSystem)
 	ntfs_mount_flags flags = NTFS_MNT_EXCLUSIVE | NTFS_MNT_IGNORE_HIBERFILE | NTFS_MNT_MAY_RDONLY;
 	CHAR8* DevName = NULL;
 
+	/* Don't double mount a volume */
+	if (FileSystem->MountCount++ > 0)
+		return EFI_SUCCESS;
+
 #ifdef FORCE_READONLY
 	flags |= NTFS_MNT_RDONLY;
 #endif
@@ -118,6 +122,7 @@ NtfsMount(EFI_FS* FileSystem)
 	}
 	FileSystem->NtfsVolume = vol;
 	ntfs_mbstoucs(vol->vol_name, &FileSystem->NtfsVolumeLabel);
+	PrintInfo(L"Mounted volume '%s'\n", FileSystem->NtfsVolumeLabel);
 
 	return EFI_SUCCESS;
 }
@@ -126,8 +131,12 @@ EFI_STATUS
 NtfsUnmount(EFI_FS* FileSystem)
 {
 	ntfs_umount(FileSystem->NtfsVolume, FALSE);
+
+	PrintInfo(L"Unmounted volume '%s'\n", FileSystem->NtfsVolumeLabel);
 	free(FileSystem->NtfsVolumeLabel);
 	FileSystem->NtfsVolumeLabel = NULL;
+	FileSystem->MountCount = 0;
+	FileSystem->TotalRefCount = 0;
 
 	RemoveEntryList((LIST_ENTRY*)FileSystem);
 
@@ -188,8 +197,8 @@ NtfsOpen(EFI_NTFS_FILE* File)
 	char* path = NULL;
 	int sz;
 
-	/* Open root if Path is NULL, regular file or dir otherwise */
-	if (File->Path == NULL) {
+	if (File->Path[0] == PATH_CHAR && File->Path[1] == 0) {
+		/* Root directory */
 		File->NtfsInode = ntfs_inode_open(File->FileSystem->NtfsVolume, FILE_root);
 		File->IsRoot = TRUE;
 	} else {
