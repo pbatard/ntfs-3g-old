@@ -36,6 +36,102 @@
 
 #define IS_DIR(ni)      (((ntfs_inode*)(ni))->mrec->flags & MFT_RECORD_IS_DIRECTORY)
 
+/*
+ * Convert an errno to an EFI_STATUS code. Adapted from:
+ * https://github.com/ipxe/ipxe/blob/master/src/include/ipxe/errno/efi.h
+ */
+static EFI_STATUS ErrnoToEfiStatus(VOID)
+{
+	switch (errno) {
+	case 0:
+		return EFI_SUCCESS;
+	case ECANCELED:
+		return EFI_ABORTED;
+	case EACCES:
+	case EPERM:
+	case ETXTBSY:
+		return EFI_ACCESS_DENIED;
+	case EADDRINUSE:
+	case EALREADY:
+	case EINPROGRESS:
+	case EISCONN:
+		return EFI_ALREADY_STARTED;
+	case EMSGSIZE:
+		return EFI_BAD_BUFFER_SIZE;
+	case E2BIG:
+	case EOVERFLOW:
+	case ERANGE:
+		return EFI_BUFFER_TOO_SMALL;
+	case ENODEV:
+		return EFI_DEVICE_ERROR;
+	case ENOEXEC:
+		return EFI_LOAD_ERROR;
+	case ESPIPE:
+		return EFI_END_OF_FILE;
+	case EFBIG:
+		return EFI_END_OF_MEDIA;
+	case EBADF:
+	case EDOM:
+	case EFAULT:
+	case EIDRM:
+	case EILSEQ:
+	case EINVAL:
+	case ENAMETOOLONG:
+	case EPROTOTYPE:
+		return EFI_INVALID_PARAMETER;
+	case EMFILE:
+	case EMLINK:
+	case ENFILE:
+	case ENOBUFS:
+	case ENOLCK:
+	case ENOLINK:
+	case ENOMEM:
+	case ENOSR:
+		return EFI_OUT_OF_RESOURCES;
+	case EBADMSG:
+	case EISDIR:
+	case EIO:
+	case ENOMSG:
+	case ENOSTR:
+	case EPROTO:
+		return EFI_PROTOCOL_ERROR;
+	case EBUSY:
+	case ENODATA:
+		return EFI_NO_RESPONSE;
+	case ECHILD:
+	case ENOENT:
+	case ENXIO:
+		return EFI_NOT_FOUND;
+	case EAGAIN:
+	case EINTR:
+	case EWOULDBLOCK:
+		return EFI_NOT_READY;
+	case ESRCH:
+		return EFI_NOT_STARTED;
+	case ETIME:
+	case ETIMEDOUT:
+		return EFI_TIMEOUT;
+	case EAFNOSUPPORT:
+	case ENOPROTOOPT:
+	case ENOSYS:
+	case ENOTSUP:
+	case EOPNOTSUPP:
+		return EFI_UNSUPPORTED;
+	case ELOOP:
+	case ENOTDIR:
+	case ENOTEMPTY:
+	case EXDEV:
+		return EFI_VOLUME_CORRUPTED;
+	case ENOSPC:
+		return EFI_VOLUME_FULL;
+	case EEXIST:
+	case EROFS:
+		return EFI_WRITE_PROTECTED;
+	default:
+		return EFI_NO_MAPPING;
+	}
+}
+
 /* Compute an EFI_TIME representation of an ntfs_time field */
 VOID
 NtfsGetEfiTime(EFI_NTFS_FILE* File, EFI_TIME* Time, INTN Type)
@@ -103,6 +199,7 @@ NtfsIsVolumeReadOnly(VOID* NtfsVolume)
 EFI_STATUS
 NtfsMount(EFI_FS* FileSystem)
 {
+	int sz;
 	ntfs_volume* vol = NULL;
 	ntfs_mount_flags flags = NTFS_MNT_EXCLUSIVE | NTFS_MNT_IGNORE_HIBERFILE | NTFS_MNT_MAY_RDONLY;
 	CHAR8* DevName = NULL;
@@ -116,10 +213,13 @@ NtfsMount(EFI_FS* FileSystem)
 #endif
 
 	/* ntfs_ucstombs() can be used to convert to UTF-8 */
-	ntfs_ucstombs(FileSystem->DevicePathString,
+	sz = ntfs_ucstombs(FileSystem->DevicePathString,
 		SafeStrLen(FileSystem->DevicePathString), &DevName, 0);
-	if (DevName == NULL)
-		return EFI_OUT_OF_RESOURCES;
+	if (sz <= 0) {
+		PrintError(L"%a failed to convert '%s': %a\n",
+			__FUNCTION__, FileSystem->DevicePathString, strerror(errno));
+		return ErrnoToEfiStatus();
+	}
 
 	/* Insert this filesystem in our list so that ntfs_mount() can locate it */
 	InsertTailList(&FsListHead, (LIST_ENTRY*)FileSystem);
@@ -218,8 +318,9 @@ NtfsOpen(EFI_NTFS_FILE* File)
 	} else {
 		sz = ntfs_ucstombs(File->Path, SafeStrLen(File->Path), &path, 0);
 		if (sz <= 0) {
-			PrintError(L"Could not allocate path string\n");
-			return EFI_OUT_OF_RESOURCES;
+			PrintError(L"%a failed to convert '%s': %a\n",
+				__FUNCTION__, File->Path, strerror(errno));
+			return ErrnoToEfiStatus();
 		}
 		File->NtfsInode = ntfs_pathname_to_inode(File->FileSystem->NtfsVolume, NULL, path);
 		free(path);
@@ -251,7 +352,7 @@ NtfsRead(EFI_NTFS_FILE* File, VOID* Data, UINTN* Len)
 	na = ntfs_attr_open(File->NtfsInode, AT_DATA, AT_UNNAMED, 0);
 	if (!na) {
 		PrintError(L"%a failed: %a\n", __FUNCTION__, strerror(errno));
-		return EFI_DEVICE_ERROR;
+		return ErrnoToEfiStatus();
 	}
 
 	max_read = na->data_size;
@@ -275,7 +376,7 @@ NtfsRead(EFI_NTFS_FILE* File, VOID* Data, UINTN* Len)
 			if (ret >= 0)
 				errno = EIO;
 			PrintError(L"%a failed: %a\n", __FUNCTION__, strerror(errno));
-			return EFI_DEVICE_ERROR;
+			return ErrnoToEfiStatus();
 		}
 		size -= ret;
 		File->Offset += ret;
@@ -297,7 +398,7 @@ NtfsWrite(EFI_NTFS_FILE* File, VOID* Data, UINTN* Len)
 	na = ntfs_attr_open(File->NtfsInode, AT_DATA, AT_UNNAMED, 0);
 	if (!na) {
 		PrintError(L"%a failed: %a\n", __FUNCTION__, strerror(errno));
-		return EFI_DEVICE_ERROR;
+		return ErrnoToEfiStatus();
 	}
 
 	while (size > 0) {
@@ -307,7 +408,7 @@ NtfsWrite(EFI_NTFS_FILE* File, VOID* Data, UINTN* Len)
 			if (ret >= 0)
 				errno = EIO;
 			PrintError(L"%a failed: %a\n", __FUNCTION__, strerror(errno));
-			return EFI_DEVICE_ERROR;
+			return ErrnoToEfiStatus();
 		}
 		size -= ret;
 		File->Offset += ret;
@@ -354,8 +455,9 @@ NtfsGetInfo(EFI_FILE_INFO* Info, VOID* NtfsVolume, CONST CHAR16* Path,
 	if (Path != NULL) {
 		sz = ntfs_ucstombs(Path, SafeStrLen(Path), &path, 0);
 		if (sz <= 0) {
-			PrintError(L"Could not allocate path string\n");
-			return EFI_OUT_OF_RESOURCES;
+			PrintError(L"%a failed to convert '%s': %a\n",
+				__FUNCTION__, Path, strerror(errno));
+			return ErrnoToEfiStatus();
 		}
 		ni = ntfs_pathname_to_inode(NtfsVolume, NULL, path);
 		free(path);
@@ -400,8 +502,9 @@ NtfsSetInfo(EFI_FILE_INFO* Info, VOID* NtfsVolume, CONST CHAR16* Path)
 
 	sz = ntfs_ucstombs(Path, SafeStrLen(Path), &path, 0);
 	if (sz <= 0) {
-		PrintError(L"Could not allocate path string\n");
-		return EFI_OUT_OF_RESOURCES;
+		PrintError(L"%a failed to convert '%s': %a\n",
+			__FUNCTION__, Path, strerror(errno));
+		return ErrnoToEfiStatus();
 	}
 	ni = ntfs_pathname_to_inode(NtfsVolume, NULL, path);
 	free(path);
@@ -439,7 +542,7 @@ NtfsReadDir(EFI_NTFS_FILE* File, NTFS_DIRHOOK Hook, VOID* HookData)
 
 	if (ntfs_readdir(File->NtfsInode, &pos, HookData, Hook)) {
 		PrintError(L"%a failed: %a\n", __FUNCTION__, strerror(errno));
-		return EFI_NOT_FOUND;
+		return ErrnoToEfiStatus();
 	}
 
 	return EFI_SUCCESS;
@@ -450,7 +553,7 @@ NtfsRenameVolume(VOID* NtfsVolume, CONST CHAR16* Label, CONST INTN Len)
 {
 	if (ntfs_volume_rename(NtfsVolume, Label, (int)Len) < 0) {
 		PrintError(L"%a failed: %a\n", __FUNCTION__, strerror(errno));
-		return EFI_INVALID_PARAMETER;
+		return ErrnoToEfiStatus();
 	}
 	return EFI_SUCCESS;
 }
@@ -465,8 +568,9 @@ NtfsDeleteFile(EFI_NTFS_FILE* File)
 	/* Convert the path to UTF-8 */
 	sz = ntfs_ucstombs(File->Path, SafeStrLen(File->Path), &path, 0);
 	if (sz <= 0) {
-		PrintError(L"Could not allocate path string\n");
-		return EFI_WARN_DELETE_FAILURE;
+		PrintError(L"%a failed to convert '%s': %a\n",
+			__FUNCTION__, File->Path, strerror(errno));
+		return ErrnoToEfiStatus();
 	}
 
 	/* Isolate dirname and get the inode */
@@ -484,7 +588,7 @@ NtfsDeleteFile(EFI_NTFS_FILE* File)
 	if (ntfs_delete(File->FileSystem->NtfsVolume, path, File->NtfsInode,
 		dir_ni, File->Basename, SafeStrLen(File->Basename)) < 0) {
 		PrintError(L"%a failed: %a\n", __FUNCTION__, strerror(errno));
-		return EFI_WARN_DELETE_FAILURE;
+		return ErrnoToEfiStatus();
 	}
 	return EFI_SUCCESS;
 }
@@ -494,7 +598,7 @@ NtfsFlushFile(EFI_NTFS_FILE* File)
 {
 	if (ntfs_inode_sync(File->NtfsInode) < 0) {
 		PrintError(L"%a failed: %a\n", __FUNCTION__, strerror(errno));
-		return EFI_DEVICE_ERROR;
+		return ErrnoToEfiStatus();
 	}
 	return EFI_SUCCESS;
 }
