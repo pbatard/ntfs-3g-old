@@ -215,7 +215,7 @@ FileDelete(EFI_FILE_HANDLE This)
 		return EFI_WRITE_PROTECTED;
 	}
 
-	return EFI_UNSUPPORTED;
+	return NtfsDeleteFile(File);
 }
 
 /**
@@ -355,7 +355,11 @@ FileWrite(EFI_FILE_HANDLE This, UINTN* Len, VOID* Data)
 	if (NtfsIsVolumeReadOnly(File->FileSystem->NtfsVolume))
 		return EFI_WRITE_PROTECTED;
 
-	return EFI_UNSUPPORTED;
+	/* "Writes to open directory files are not supported" */
+	if (File->IsDir)
+		return EFI_UNSUPPORTED;
+
+	return NtfsWrite(File, Data, Len);
 }
 
 /* Ex version */
@@ -548,7 +552,10 @@ FileGetInfo(EFI_FILE_HANDLE This, EFI_GUID* Type, UINTN* Len, VOID* Data)
 EFI_STATUS EFIAPI
 FileSetInfo(EFI_FILE_HANDLE This, EFI_GUID* Type, UINTN Len, VOID* Data)
 {
+	EFI_STATUS Status;
 	EFI_NTFS_FILE* File = BASE_CR(This, EFI_NTFS_FILE, EfiFile);
+	EFI_FILE_INFO* Info = (EFI_FILE_INFO*)Data;
+	EFI_FILE_SYSTEM_VOLUME_LABEL* VLInfo = (EFI_FILE_SYSTEM_VOLUME_LABEL*)Data;
 
 	PrintInfo(L"SetInfo(" PERCENT_P L"|'%s', %d) %s\n", (UINTN)This,
 		File->Path, Len, File->IsDir ? L"<DIR>" : L"");
@@ -556,7 +563,20 @@ FileSetInfo(EFI_FILE_HANDLE This, EFI_GUID* Type, UINTN Len, VOID* Data)
 	if (NtfsIsVolumeReadOnly(File->FileSystem->NtfsVolume))
 		return EFI_WRITE_PROTECTED;
 
-	return EFI_UNSUPPORTED;
+	if (CompareMem(Type, &gEfiFileInfoGuid, sizeof(*Type)) == 0) {
+		PrintExtra(L"Set regular file information\n");
+		Status = NtfsSetInfo(Info, File->FileSystem->NtfsVolume, File->Path);
+		if (EFI_ERROR(Status)) 
+			PrintStatusError(Status, L"Could not set file info");
+		return Status;
+	} else if (CompareMem(Type, &gEfiFileSystemVolumeLabelInfoIdGuid, sizeof(*Type)) == 0) {
+		PrintExtra(L"Set volume label\n");
+		return NtfsRenameVolume(File->FileSystem->NtfsVolume,
+			VLInfo->VolumeLabel, Len / sizeof(CHAR16));
+	} else {
+		PrintError(L"'%s': Cannot set information of type %s", File->Path, GuidToStr(Type));
+		return EFI_UNSUPPORTED;
+	}
 }
 
 /**
@@ -578,7 +598,7 @@ FileFlush(EFI_FILE_HANDLE This)
 	if (NtfsIsVolumeReadOnly(File->FileSystem->NtfsVolume))
 		return EFI_SUCCESS;
 
-	return EFI_UNSUPPORTED;
+	return NtfsFlushFile(File);
 }
 
 /* Ex version */
