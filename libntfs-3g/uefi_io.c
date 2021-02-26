@@ -112,12 +112,12 @@ static int ntfs_device_uefi_io_close(struct ntfs_device *dev)
 {
 	if (!NDevOpen(dev)) {
 		errno = EBADF;
-		ntfs_log_perror("Device is not open");
+		ntfs_log_perror("Device is not open\n");
 		return -1;
 	}
 	if (NDevDirty(dev))
 		if (ntfs_device_uefi_io_sync(dev)) {
-			ntfs_log_perror("Failed to sync device");
+			ntfs_log_perror("Failed to sync device\n");
 			return -1;
 		}
 
@@ -134,25 +134,41 @@ static s64 ntfs_device_uefi_io_seek(struct ntfs_device* dev, s64 offset,
 	int whence)
 {
 	EFI_FS* FileSystem = (EFI_FS*)dev->d_private;
+	EFI_BLOCK_IO_MEDIA* Media;
+	s64 new_offset, volume_size = 0;
+
 	FS_ASSERT(FileSystem != NULL);
 
-	/* TODO: Support SEEK_END and check for overflow */
+	/* Compute the Media size */
+	if (FileSystem->BlockIo2 != NULL)
+		Media = FileSystem->BlockIo2->Media;
+	else
+		Media = FileSystem->BlockIo->Media;
+	volume_size = (s64)Media->BlockSize * (Media->LastBlock + 1);
+
 	switch (whence) {
 	case SEEK_SET:
-		FileSystem->Offset = offset;
-		return offset;
+		new_offset = offset;
+		break;
 	case SEEK_CUR:
-		if (FileSystem->Offset + offset < 0) {
-			errno = EINVAL;
-			return -1;
-		}
-		FileSystem->Offset += offset;
-		return offset;
+		new_offset = FileSystem->Offset + offset;
+		break;
+	case SEEK_END:
+		new_offset = volume_size + offset;
+		break;
 	default:
-		ntfs_log_perror("Seek option is not implemented\n");
+		ntfs_log_perror("Seek option %d is not implemented\n", whence);
 		errno = EINVAL;
 		return -1;
 	}
+
+	if (new_offset < 0 || new_offset > volume_size) {
+		errno = EINVAL;
+		return -1;
+	}
+
+	FileSystem->Offset = new_offset;
+	return new_offset;
 }
 
 /**
@@ -166,9 +182,7 @@ static s64 ntfs_device_uefi_io_pread(struct ntfs_device *dev, void *buf,
 	EFI_BLOCK_IO_MEDIA* Media;
 
 	FS_ASSERT(FileSystem != NULL);
-	FS_ASSERT(FileSystem->DiskIo != NULL);
-	FS_ASSERT(FileSystem->BlockIo != NULL);
-	FS_ASSERT(count > 0);
+	FS_ASSERT(count >= 0);
 	FS_ASSERT(offset >= 0);
 
 	if (FileSystem->BlockIo2 != NULL)
@@ -184,7 +198,7 @@ static s64 ntfs_device_uefi_io_pread(struct ntfs_device *dev, void *buf,
 			offset, (UINTN)count, buf);
 
 	if (EFI_ERROR(Status)) {
-		ntfs_log_perror("Failed to read data at address %08llx", offset);
+		ntfs_log_perror("Failed to read data at address %08llx\n", offset);
 		errno = EIO;
 		return -1;
 	}
@@ -204,21 +218,19 @@ static s64 ntfs_device_uefi_io_pwrite(struct ntfs_device *dev, const void *buf,
 	EFI_BLOCK_IO_MEDIA* Media;
 
 	FS_ASSERT(FileSystem != NULL);
-	FS_ASSERT(FileSystem->DiskIo != NULL);
-	FS_ASSERT(FileSystem->BlockIo != NULL);
-	FS_ASSERT(count > 0);
+	FS_ASSERT(count >= 0);
 	FS_ASSERT(offset >= 0);
-
-	if (NDevReadOnly(dev)) {
-		errno = EROFS;
-		return -1;
-	}
-	NDevSetDirty(dev);
 
 	if (FileSystem->BlockIo2 != NULL)
 		Media = FileSystem->BlockIo2->Media;
 	else
 		Media = FileSystem->BlockIo->Media;
+
+	if (NDevReadOnly(dev) || Media->ReadOnly) {
+		errno = EROFS;
+		return -1;
+	}
+	NDevSetDirty(dev);
 
 	if (FileSystem->DiskIo2 != NULL)
 		Status = FileSystem->DiskIo2->WriteDiskEx(FileSystem->DiskIo2, Media->MediaId,
@@ -228,7 +240,7 @@ static s64 ntfs_device_uefi_io_pwrite(struct ntfs_device *dev, const void *buf,
 			offset, (UINTN)count, (VOID*)buf);
 
 	if (EFI_ERROR(Status)) {
-		ntfs_log_perror("Failed to write data at address %08llx", offset);
+		ntfs_log_perror("Failed to write data at address %08llx\n", offset);
 		errno = EIO;
 		return -1;
 	}
@@ -261,9 +273,16 @@ static s64 ntfs_device_uefi_io_write(struct ntfs_device* dev, const void* buf,
 {
 	s64 res;
 	EFI_FS* FileSystem = (EFI_FS*)dev->d_private;
+	EFI_BLOCK_IO_MEDIA* Media;
+
 	FS_ASSERT(FileSystem != NULL);
 
-	if (NDevReadOnly(dev)) {
+	if (FileSystem->BlockIo2 != NULL)
+		Media = FileSystem->BlockIo2->Media;
+	else
+		Media = FileSystem->BlockIo->Media;
+
+	if (NDevReadOnly(dev) || Media->ReadOnly) {
 		errno = EROFS;
 		return -1;
 	}
