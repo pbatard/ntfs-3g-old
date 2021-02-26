@@ -698,7 +698,24 @@ out:
 EFI_STATUS
 FSInstall(EFI_FS* This, EFI_HANDLE ControllerHandle)
 {
+	const CHAR8 NtfsMagic[8] = { 'N', 'T', 'F', 'S', ' ', ' ', ' ', ' ' };
 	EFI_STATUS Status;
+	CHAR8* Buffer;
+
+	/*
+	 * Check if it's a filesystem we can handle by reading the first block
+	 * of the volume and looking for the NTFS magic in the OEM ID.
+	 */
+	Buffer = (CHAR8*)AllocateZeroPool(This->BlockIo->Media->BlockSize);
+	if (Buffer == NULL)
+		return EFI_OUT_OF_RESOURCES;
+	Status = This->BlockIo->ReadBlocks(This->BlockIo, This->BlockIo->Media->MediaId,
+			0, This->BlockIo->Media->BlockSize, Buffer);
+	if (!EFI_ERROR(Status))
+		Status = CompareMem(&Buffer[3], NtfsMagic, sizeof(NtfsMagic)) ? EFI_UNSUPPORTED : EFI_SUCCESS;
+	FreePool(Buffer);
+	if (EFI_ERROR(Status))
+		return Status;
 
 	PrintInfo(L"FSInstall: %s\n", This->DevicePathString);
 
