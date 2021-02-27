@@ -558,6 +558,10 @@ NtfsRenameVolume(VOID* NtfsVolume, CONST CHAR16* Label, CONST INTN Len)
 	return EFI_SUCCESS;
 }
 
+/*
+ * Like FileDelete(), this call should only
+ * return EFI_WARN_DELETE_FAILURE on error.
+ */
 EFI_STATUS
 NtfsDeleteFile(EFI_NTFS_FILE* File)
 {
@@ -570,25 +574,28 @@ NtfsDeleteFile(EFI_NTFS_FILE* File)
 	if (sz <= 0) {
 		PrintError(L"%a failed to convert '%s': %a\n",
 			__FUNCTION__, File->Path, strerror(errno));
-		return ErrnoToEfiStatus();
+		return EFI_WARN_DELETE_FAILURE;
 	}
 
 	/* Isolate dirname and get the inode */
 	FS_ASSERT(path[0] == '/');
-	for (sz; sz > 0; --sz) {
+	for (sz; sz >= 0; --sz) {
 		if (path[sz] == '/') {
 			path[sz] = 0;
 			break;
 		}
 	}
-	dir_ni = ntfs_pathname_to_inode(File->FileSystem->NtfsVolume, NULL, path);
+	if (path[0] == 0)
+		dir_ni = ntfs_inode_open(File->FileSystem->NtfsVolume, FILE_root);
+	else
+		dir_ni = ntfs_pathname_to_inode(File->FileSystem->NtfsVolume, NULL, path);
 	path[sz] = '/';
 
 	/* Delete the file */
 	if (ntfs_delete(File->FileSystem->NtfsVolume, path, File->NtfsInode,
 		dir_ni, File->Basename, SafeStrLen(File->Basename)) < 0) {
 		PrintError(L"%a failed: %a\n", __FUNCTION__, strerror(errno));
-		return ErrnoToEfiStatus();
+		return EFI_WARN_DELETE_FAILURE;
 	}
 	return EFI_SUCCESS;
 }

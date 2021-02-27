@@ -201,21 +201,48 @@ FileClose(EFI_FILE_HANDLE This)
  *
  * @v This			File handle
  * @ret Status		EFI status code
+ *
+ * Note that, per specs, this function call can only ever
+ * return EFI_SUCCESS or EFI_WARN_DELETE_FAILURE...
  */
 EFI_STATUS EFIAPI
 FileDelete(EFI_FILE_HANDLE This)
 {
+	EFI_STATUS Status;
 	EFI_NTFS_FILE* File = BASE_CR(This, EFI_NTFS_FILE, EfiFile);
 
-	/* Close file */
-	FileClose(This);
+	/* Keep a pointer to the FS since we're going to delete File */
+	EFI_FS* FileSystem = File->FileSystem;
+
+	PrintInfo(L"Delete(" PERCENT_P L"|'%s') %s\n", (UINTN)This, File->Path,
+		File->IsRoot ? L"<ROOT>" : L"");
+
+	File->RefCount--;
+	FileSystem->TotalRefCount--;
+	PrintExtra(L"TotalRefCount = %d\n", FileSystem->TotalRefCount);
+
+	/* Close the file */
+	if (File->RefCount <= 0)
+		NtfsClose(File);
+
+	/* Don't delete root or files that have more than one ref */
+	if (File->IsRoot || File->RefCount > 0)
+		return EFI_WARN_DELETE_FAILURE;
 
 	if (NtfsIsVolumeReadOnly(File->FileSystem->NtfsVolume)) {
 		PrintError(L"Cannot delete '%s'\n", File->Path);
-		return EFI_WRITE_PROTECTED;
+		return EFI_WARN_DELETE_FAILURE;
 	}
 
-	return NtfsDeleteFile(File);
+	Status = NtfsDeleteFile(File);
+	NtfsDestroyFile(File);
+
+	/* If there are no more files open on the volume, unmount it */
+	if (FileSystem->TotalRefCount <= 0) {
+		PrintInfo(L"Last file instance: Unmounting volume\n");
+		NtfsUnmount(FileSystem);
+	}
+	return Status;
 }
 
 /**
