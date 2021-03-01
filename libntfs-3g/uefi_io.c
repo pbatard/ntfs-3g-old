@@ -89,14 +89,9 @@ static int ntfs_device_uefi_io_sync(struct ntfs_device* dev)
 	FS_ASSERT(FileSystem->BlockIo != NULL);
 
 	if (!NDevReadOnly(dev)) {
-		/* We only support flush for DiskIo2 type devices */
-		if (FileSystem->DiskIo2 == NULL) {
-			errno = ENOSYS;
-			return -1;
-		}
-		Status = FileSystem->DiskIo2->FlushDiskEx(FileSystem->DiskIo2,
-			&(FileSystem->DiskIo2Token));
+		Status = FileSystem->BlockIo->FlushBlocks(FileSystem->BlockIo);
 		if (EFI_ERROR(Status)) {
+			ntfs_log_perror("SYNC ERROR: %r\n", Status);
 			errno = EIO;
 			return -1;
 		}
@@ -122,7 +117,6 @@ static int ntfs_device_uefi_io_close(struct ntfs_device *dev)
 		}
 
 	NDevClearOpen(dev);
-	dev->d_private = NULL;
 
 	return 0;
 }
@@ -140,10 +134,7 @@ static s64 ntfs_device_uefi_io_seek(struct ntfs_device* dev, s64 offset,
 	FS_ASSERT(FileSystem != NULL);
 
 	/* Compute the Media size */
-	if (FileSystem->BlockIo2 != NULL)
-		Media = FileSystem->BlockIo2->Media;
-	else
-		Media = FileSystem->BlockIo->Media;
+	Media = FileSystem->BlockIo->Media;
 	volume_size = (s64)Media->BlockSize * (Media->LastBlock + 1);
 
 	switch (whence) {
@@ -185,11 +176,9 @@ static s64 ntfs_device_uefi_io_pread(struct ntfs_device *dev, void *buf,
 	FS_ASSERT(count >= 0);
 	FS_ASSERT(offset >= 0);
 
-	if (FileSystem->BlockIo2 != NULL)
-		Media = FileSystem->BlockIo2->Media;
-	else
-		Media = FileSystem->BlockIo->Media;
+	Media = FileSystem->BlockIo->Media;
 
+	/* Prefer DiskIo2 when available */
 	if (FileSystem->DiskIo2 != NULL)
 		Status = FileSystem->DiskIo2->ReadDiskEx(FileSystem->DiskIo2, Media->MediaId,
 			offset, &(FileSystem->DiskIo2Token), count, buf);
@@ -221,10 +210,7 @@ static s64 ntfs_device_uefi_io_pwrite(struct ntfs_device *dev, const void *buf,
 	FS_ASSERT(count >= 0);
 	FS_ASSERT(offset >= 0);
 
-	if (FileSystem->BlockIo2 != NULL)
-		Media = FileSystem->BlockIo2->Media;
-	else
-		Media = FileSystem->BlockIo->Media;
+	Media = FileSystem->BlockIo->Media;
 
 	if (NDevReadOnly(dev) || Media->ReadOnly) {
 		errno = EROFS;
@@ -232,6 +218,7 @@ static s64 ntfs_device_uefi_io_pwrite(struct ntfs_device *dev, const void *buf,
 	}
 	NDevSetDirty(dev);
 
+	/* Prefer DiskIo2 when available */
 	if (FileSystem->DiskIo2 != NULL)
 		Status = FileSystem->DiskIo2->WriteDiskEx(FileSystem->DiskIo2, Media->MediaId,
 			offset, &(FileSystem->DiskIo2Token), count, (VOID*)buf);
@@ -273,16 +260,10 @@ static s64 ntfs_device_uefi_io_write(struct ntfs_device* dev, const void* buf,
 {
 	s64 res;
 	EFI_FS* FileSystem = (EFI_FS*)dev->d_private;
-	EFI_BLOCK_IO_MEDIA* Media;
 
 	FS_ASSERT(FileSystem != NULL);
 
-	if (FileSystem->BlockIo2 != NULL)
-		Media = FileSystem->BlockIo2->Media;
-	else
-		Media = FileSystem->BlockIo->Media;
-
-	if (NDevReadOnly(dev) || Media->ReadOnly) {
+	if (NDevReadOnly(dev) || FileSystem->BlockIo->Media->ReadOnly) {
 		errno = EROFS;
 		return -1;
 	}
