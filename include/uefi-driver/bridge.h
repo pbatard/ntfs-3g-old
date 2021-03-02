@@ -41,13 +41,14 @@ EFI_STATUS NtfsUnmount(EFI_FS* FileSystem);
 EFI_STATUS NtfsCreateFile(EFI_NTFS_FILE** File, EFI_FS* FileSystem);
 VOID NtfsDestroyFile(EFI_NTFS_FILE* File);
 EFI_STATUS NtfsOpen(EFI_NTFS_FILE* File);
+EFI_STATUS NtfsCreate(EFI_NTFS_FILE* File);
 VOID NtfsClose(EFI_NTFS_FILE* File);
 EFI_STATUS NtfsReadDir(EFI_NTFS_FILE* File, NTFS_DIRHOOK Hook, VOID* HookData);
 EFI_STATUS NtfsRead(EFI_NTFS_FILE* File, VOID* Data, UINTN* Len);
 EFI_STATUS NtfsWrite(EFI_NTFS_FILE* File, VOID* Data, UINTN* Len);
-EFI_STATUS NtfsGetInfo(EFI_FILE_INFO* Info, VOID* NtfsVolume, CONST CHAR16* Path,
+EFI_STATUS NtfsGetInfo(EFI_NTFS_FILE* File, EFI_FILE_INFO* Info,
 	CONST UINT64 MRef, BOOLEAN IsDir);
-EFI_STATUS NtfsSetInfo(EFI_FILE_INFO* Info, VOID* NtfsVolume, CONST CHAR16* Path);
+EFI_STATUS NtfsSetInfo(EFI_NTFS_FILE* File, EFI_FILE_INFO* Info);
 UINT64 NtfsGetVolumeFreeSpace(VOID* NtfsVolume);
 UINT64 NtfsGetFileSize(EFI_NTFS_FILE* File);
 UINT64 NtfsGetFileOffset(EFI_NTFS_FILE* File);

@@ -50,22 +50,30 @@ FileOpen(EFI_FILE_HANDLE This, EFI_FILE_HANDLE* New,
 	CHAR16* Path = NULL;
 	INTN i, Len;
 
-	PrintInfo(L"Open(" PERCENT_P L"%s, \"%s\")\n", (UINTN)This,
-		File->IsRoot ? L" <ROOT>" : L"", Name);
+	PrintInfo(L"Open(" PERCENT_P L"%s, \"%s\", Mode %llx)\n", (UINTN)This,
+		File->IsRoot ? L" <ROOT>" : L"", Name, Mode);
 
 	if (NtfsIsVolumeReadOnly(File->FileSystem->NtfsVolume) &&  Mode != EFI_FILE_MODE_READ) {
-		PrintWarning(L"File '%s' can only be opened in read-only mode\n", Name);
+		PrintInfo(L"Invalid mode for read-only media\n", Name);
 		return EFI_WRITE_PROTECTED;
 	}
+	// TODO: Check attributes to see if file is read-only and also return an error then
 
 	/* Additional failures */
 	if ((StrCmp(Name, L"..") == 0) && File->IsRoot) {
 		PrintInfo(L"Trying to open <ROOT>'s parent\n");
 		return EFI_NOT_FOUND;
 	}
+	if (!File->IsDir) {
+		PrintWarning(L"Parent is not a directory\n");
+		return EFI_NOT_FOUND;
+	}
 
 	/* See if we're trying to reopen current (which the EFI Shell insists on doing) */
 	if ((*Name == 0) || (StrCmp(Name, L".") == 0)) {
+		/* Prevent the creation of a file named '..' */
+		if (Mode & EFI_FILE_MODE_CREATE)
+			return EFI_NOT_FOUND;
 		PrintInfo(L"  Reopening %s\n", File->IsRoot ? L"<ROOT>" : File->Path);
 		File->RefCount++;
 		File->FileSystem->TotalRefCount++;
@@ -116,7 +124,11 @@ FileOpen(EFI_FILE_HANDLE This, EFI_FILE_HANDLE* New,
 
 	/* See if we're dealing with the root */
 	if (Path[0] == 0 || (Path[0] == PATH_CHAR && Path[1] == 0)) {
-		PrintInfo(L"  Reopening <ROOT>\n");
+		if (Mode & EFI_FILE_MODE_CREATE) {
+			Status = EFI_ACCESS_DENIED;
+			goto out;
+		}
+		PrintInfo(L"  Opening <ROOT> duplicate\n");
 		NewFile->IsRoot = TRUE;
 	}
 
@@ -131,11 +143,19 @@ FileOpen(EFI_FILE_HANDLE This, EFI_FILE_HANDLE* New,
 	}
 	NewFile->Basename = &NewFile->Path[i + 1];
 
-	Status = NtfsOpen(NewFile);
-	if (EFI_ERROR(Status)) {
-		if (Status != EFI_NOT_FOUND)
-			PrintStatusError(Status, L"Could not open file '%s'", Name);
-		goto out;
+	if (Mode & EFI_FILE_MODE_CREATE) {
+		NewFile->IsDir = Attributes & EFI_FILE_DIRECTORY;
+		PrintInfo(L"Creating %s '%s'\n", NewFile->IsDir ? L"dir" : L"file", NewFile->Path);
+		Status = NtfsCreate(NewFile);
+		if (EFI_ERROR(Status))
+			goto out;
+	} else {
+		Status = NtfsOpen(NewFile);
+		if (EFI_ERROR(Status)) {
+			if (Status != EFI_NOT_FOUND)
+				PrintStatusError(Status, L"Could not open file '%s'", Name);
+			goto out;
+		}
 	}
 
 	NewFile->RefCount++;
@@ -278,10 +298,10 @@ static INT32 DirHook(VOID* Data, CONST CHAR16* Name,
 	HookData->Info->Size = sizeof(EFI_FILE_INFO) + (UINT64)Len * sizeof(CHAR16);
 
 	/* Set the Info attributes we obtain from the inode */
-	Status = NtfsGetInfo(HookData->Info, HookData->Parent->FileSystem->NtfsVolume,
-		NULL, MRef, (DtType == 4));	/* DtType is 4 for directories */
+	Status = NtfsGetInfo(HookData->Parent, HookData->Info,
+		MRef, (DtType == 4));	/* DtType is 4 for directories */
 	if (EFI_ERROR(Status))
-		PrintStatusError(Status, L"Could not set directory entry info");
+		PrintStatusError(Status, L"Could not get directory entry info");
 
 	return 0;
 }
@@ -349,7 +369,7 @@ FileRead(EFI_FILE_HANDLE This, UINTN* Len, VOID* Data)
 {
 	EFI_NTFS_FILE* File = BASE_CR(This, EFI_NTFS_FILE, EfiFile);
 
-	PrintInfo(L"Read(" PERCENT_P L"|'%s', %d) %s\n", (UINTN)This, File->Path,
+	PrintExtra(L"Read(" PERCENT_P L"|'%s', %d) %s\n", (UINTN)This, File->Path,
 		*Len, File->IsDir ? L"<DIR>" : L"");
 
 	/* If this is a directory, then fetch the directory entries */
@@ -378,6 +398,9 @@ EFI_STATUS EFIAPI
 FileWrite(EFI_FILE_HANDLE This, UINTN* Len, VOID* Data)
 {
 	EFI_NTFS_FILE* File = BASE_CR(This, EFI_NTFS_FILE, EfiFile);
+
+	PrintExtra(L"Write(" PERCENT_P L"|'%s', %d) %s\n", (UINTN)This, File->Path,
+		*Len, File->IsDir ? L"<DIR>" : L"");
 
 	if (NtfsIsVolumeReadOnly(File->FileSystem->NtfsVolume))
 		return EFI_WRITE_PROTECTED;
@@ -492,10 +515,9 @@ FileGetInfo(EFI_FILE_HANDLE This, EFI_GUID* Type, UINTN* Len, VOID* Data)
 		Info->Size = *Len;
 
 		/* Set the Info attributes we obtain from the path */
-		Status = NtfsGetInfo(Info, File->FileSystem->NtfsVolume, File->Path,
-			0, File->IsDir);
+		Status = NtfsGetInfo(File, Info, 0, File->IsDir);
 		if (EFI_ERROR(Status)) {
-			PrintStatusError(Status, L"Could not set file info");
+			PrintStatusError(Status, L"Could not get file info");
 			return Status;
 		}
 
@@ -592,7 +614,7 @@ FileSetInfo(EFI_FILE_HANDLE This, EFI_GUID* Type, UINTN Len, VOID* Data)
 
 	if (CompareMem(Type, &gEfiFileInfoGuid, sizeof(*Type)) == 0) {
 		PrintExtra(L"Set regular file information\n");
-		Status = NtfsSetInfo(Info, File->FileSystem->NtfsVolume, File->Path);
+		Status = NtfsSetInfo(File, Info);
 		if (EFI_ERROR(Status)) 
 			PrintStatusError(Status, L"Could not set file info");
 		return Status;

@@ -333,6 +333,63 @@ NtfsOpen(EFI_NTFS_FILE* File)
 	return EFI_SUCCESS;
 }
 
+EFI_STATUS
+NtfsCreate(EFI_NTFS_FILE* File)
+{
+	char *path = NULL, *basename = NULL;
+	ntfs_inode *dir_ni, *ni;
+	int sz;
+
+	/* Convert the path to UTF-8 */
+	sz = ntfs_ucstombs(File->Path, SafeStrLen(File->Path), &path, 0);
+	if (sz <= 0) {
+		PrintError(L"%a failed to convert '%s': %a\n",
+			__FUNCTION__, File->Path, strerror(errno));
+		return ErrnoToEfiStatus();
+	}
+
+	/* Isolate dirname and get the directory inode */
+	FS_ASSERT(path[0] == '/');
+	for (sz; sz >= 0; --sz) {
+		if (path[sz] == '/') {
+			path[sz] = 0;
+			break;
+		}
+	}
+	if (path[0] == 0)
+		dir_ni = ntfs_inode_open(File->FileSystem->NtfsVolume, FILE_root);
+	else
+		dir_ni = ntfs_pathname_to_inode(File->FileSystem->NtfsVolume, NULL, path);
+	free(path);
+	if (!dir_ni)
+		return ErrnoToEfiStatus();
+
+	/* Create the new file or directory */
+	ni = ntfs_create(dir_ni, 0, File->Basename,
+		SafeStrLen(File->Basename), File->IsDir ? S_IFDIR : S_IFREG);
+
+	if (ni == NULL) {
+		ntfs_inode_close(dir_ni);
+		return ErrnoToEfiStatus();
+	}
+
+	/* Update cache lookup record */
+	sz = ntfs_ucstombs(File->Basename, SafeStrLen(File->Basename), &basename, 0);
+	if (sz <= 0) {
+		PrintError(L"%a failed to convert '%s': %a\n",
+			__FUNCTION__, File->Basename, strerror(errno));
+		return ErrnoToEfiStatus();
+	}
+	ntfs_inode_update_mbsname(dir_ni, basename, ni->mft_no);
+	ntfs_inode_close(dir_ni);
+	free(basename);
+
+	/* A sync never hurts */
+	ntfs_inode_sync(ni);
+	File->NtfsInode = ni;
+	return EFI_SUCCESS;
+}
+
 VOID
 NtfsClose(EFI_NTFS_FILE* File)
 {
@@ -397,7 +454,7 @@ NtfsWrite(EFI_NTFS_FILE* File, VOID* Data, UINTN* Len)
 
 	na = ntfs_attr_open(File->NtfsInode, AT_DATA, AT_UNNAMED, 0);
 	if (!na) {
-		PrintError(L"%a failed: %a\n", __FUNCTION__, strerror(errno));
+		PrintError(L"%a failed (open): %a\n", __FUNCTION__, strerror(errno));
 		return ErrnoToEfiStatus();
 	}
 
@@ -407,7 +464,7 @@ NtfsWrite(EFI_NTFS_FILE* File, VOID* Data, UINTN* Len)
 			ntfs_attr_close(na);
 			if (ret >= 0)
 				errno = EIO;
-			PrintError(L"%a failed: %a\n", __FUNCTION__, strerror(errno));
+			PrintError(L"%a failed (write): %a\n", __FUNCTION__, strerror(errno));
 			return ErrnoToEfiStatus();
 		}
 		size -= ret;
@@ -441,29 +498,23 @@ NtfsSetFileOffset(EFI_NTFS_FILE* File, UINT64 Offset)
 
 /*
  * Fill an EFI_FILE_INFO struct with data from the NTFS inode.
- * This function takes either a Path or an MREF (with the MREF
- * being used if Path is NULL).
+ * This function takes either a File or an MREF (with the MREF
+ * being used if it's non-zero).
  */
 EFI_STATUS
-NtfsGetInfo(EFI_FILE_INFO* Info, VOID* NtfsVolume, CONST CHAR16* Path,
-	CONST UINT64 MRef, BOOLEAN IsDir)
+NtfsGetInfo(EFI_NTFS_FILE* File, EFI_FILE_INFO* Info, CONST UINT64 MRef, BOOLEAN IsDir)
 {
 	char* path = NULL;
-	ntfs_inode* ni;
-	int sz;
+	ntfs_inode* ni = File->NtfsInode;
 
-	if (Path != NULL) {
-		sz = ntfs_ucstombs(Path, SafeStrLen(Path), &path, 0);
-		if (sz <= 0) {
-			PrintError(L"%a failed to convert '%s': %a\n",
-				__FUNCTION__, Path, strerror(errno));
-			return ErrnoToEfiStatus();
-		}
-		ni = ntfs_pathname_to_inode(NtfsVolume, NULL, path);
-		free(path);
-	} else {
-		ni = ntfs_inode_open(NtfsVolume, MRef);
-	}
+	/*
+	 * If Non-zero MREF, we are listing a dir, in which case we need
+	 * to open (and later close) the inode.
+	 */
+	if (MRef != 0)
+		ni = ntfs_inode_open(File->FileSystem->NtfsVolume, MRef);
+	else
+		PrintExtra(L"NtfsGetInfo for inode: %lld\n", ni->mft_no);
 
 	if (ni == NULL)
 		return EFI_NOT_FOUND;
@@ -477,7 +528,7 @@ NtfsGetInfo(EFI_FILE_INFO* Info, VOID* NtfsVolume, CONST CHAR16* Path,
 	Info->Attribute = 0;
 	if (IsDir)
 		Info->Attribute |= EFI_FILE_DIRECTORY;
-	if (ni->flags & FILE_ATTR_READONLY | NtfsIsVolumeReadOnly(NtfsVolume))
+	if (ni->flags & FILE_ATTR_READONLY | NtfsIsVolumeReadOnly(File->FileSystem->NtfsVolume))
 		Info->Attribute |= EFI_FILE_READ_ONLY;
 	if (ni->flags & FILE_ATTR_HIDDEN)
 		Info->Attribute |= EFI_FILE_HIDDEN;
@@ -486,7 +537,9 @@ NtfsGetInfo(EFI_FILE_INFO* Info, VOID* NtfsVolume, CONST CHAR16* Path,
 	if (ni->flags & FILE_ATTR_ARCHIVE)
 		Info->Attribute |= EFI_FILE_ARCHIVE;
 
-	ntfs_inode_close(ni);
+	if (MRef != 0)
+		ntfs_inode_close(ni);
+
 	return EFI_SUCCESS;
 }
 
@@ -494,27 +547,28 @@ NtfsGetInfo(EFI_FILE_INFO* Info, VOID* NtfsVolume, CONST CHAR16* Path,
  * Update NTFS inode data with the attributes from an EFI_FILE_INFO struct.
  */
 EFI_STATUS
-NtfsSetInfo(EFI_FILE_INFO* Info, VOID* NtfsVolume, CONST CHAR16* Path)
+NtfsSetInfo(EFI_NTFS_FILE* File, EFI_FILE_INFO* Info)
 {
 	char* path = NULL;
-	ntfs_inode* ni;
-	int sz;
+	ntfs_inode* ni = File->NtfsInode;
+	ntfs_attr* na;
+	int r;
 
-	sz = ntfs_ucstombs(Path, SafeStrLen(Path), &path, 0);
-	if (sz <= 0) {
-		PrintError(L"%a failed to convert '%s': %a\n",
-			__FUNCTION__, Path, strerror(errno));
-		return ErrnoToEfiStatus();
-	}
-	ni = ntfs_pathname_to_inode(NtfsVolume, NULL, path);
-	free(path);
-	if (ni == NULL)
-		return EFI_NOT_FOUND;
+	/* Resize the data section accordingly */
+	PrintExtra(L"NtfsSetInfo for inode: %lld\n", ni->mft_no);
 
 	if (Info->FileSize != ni->data_size) {
-		/* TODO: Should we just ignore it? */
-		PrintError(L"%a: Trying to alter the file size!\n", __FUNCTION__);
-		return EFI_UNSUPPORTED;
+		na = ntfs_attr_open(ni, AT_DATA, AT_UNNAMED, 0);
+		if (!na) {
+			PrintError(L"%a ntfs_attr_open failed: %a\n", __FUNCTION__, strerror(errno));
+			return ErrnoToEfiStatus();
+		}
+		r = ntfs_attr_truncate(na, Info->FileSize);
+		ntfs_attr_close(na);
+		if (r) {
+			PrintError(L"%a ntfs_attr_truncate failed: %a\n", __FUNCTION__, strerror(errno));
+			return ErrnoToEfiStatus();
+		}
 	}
 
 	ni->creation_time = UNIX_TO_NTFS_TIME(EfiTimeToUnixTime(&Info->CreateTime));
@@ -531,7 +585,7 @@ NtfsSetInfo(EFI_FILE_INFO* Info, VOID* NtfsVolume, CONST CHAR16* Path)
 	if (Info->Attribute & EFI_FILE_ARCHIVE)
 		ni->flags |= FILE_ATTR_ARCHIVE;
 
-	ntfs_inode_close(ni);
+	ntfs_inode_sync(ni);
 	return EFI_SUCCESS;
 }
 
@@ -590,6 +644,8 @@ NtfsDeleteFile(EFI_NTFS_FILE* File)
 	else
 		dir_ni = ntfs_pathname_to_inode(File->FileSystem->NtfsVolume, NULL, path);
 	path[sz] = '/';
+
+	/* TODO: Deny removing from $Extend like ntfs_fuse_rm() does */
 
 	/* Delete the file */
 	if (ntfs_delete(File->FileSystem->NtfsVolume, path, File->NtfsInode,
