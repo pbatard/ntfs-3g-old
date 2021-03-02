@@ -107,17 +107,17 @@ void* realloc(void* p, size_t new_size)
 {
 	size_t* ptr = (size_t*)p;
 
-	if (ptr != NULL) {
-		/* Access the previous size, which was stored in malloc/calloc */
-		ptr = &ptr[-1];
+	if (ptr == NULL)
+		return malloc(new_size);
+	/* Access the previous size, which was stored in malloc/calloc */
+	ptr = &ptr[-1];
 #ifdef __MAKEWITH_GNUEFI
-		ptr = ReallocatePool(ptr, (UINTN)*ptr, (UINTN)(new_size + sizeof(size_t)));
+	ptr = ReallocatePool(ptr, (UINTN)*ptr, (UINTN)(new_size + sizeof(size_t)));
 #else
-		ptr = ReallocatePool((UINTN)*ptr, (UINTN)(new_size + sizeof(size_t)), ptr);
+	ptr = ReallocatePool((UINTN)*ptr, (UINTN)(new_size + sizeof(size_t)), ptr);
 #endif
-		if (ptr != NULL)
-			*ptr++ = new_size;
-	}
+	if (ptr != NULL)
+		*ptr++ = new_size;
 	return ptr;
 }
 
