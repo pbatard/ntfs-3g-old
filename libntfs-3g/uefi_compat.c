@@ -198,9 +198,12 @@ int strncmp(const char* s1, const char* s2, size_t n)
 
 char* strcpy(char* dst, const char* src)
 {
+	char* ret;
 	FS_ASSERT(dst != NULL);
 	/* strlen validates the sanity of the source */
-	return memcpy(dst, src, strlen(src) + 1);
+	ret = memcpy(dst, src, strlen(src) + 1);
+	dst[strlen(src)] = 0;
+	return ret;
 }
 
 char* strncpy(char* dst, const char* src, size_t n)
@@ -219,7 +222,7 @@ char* strcat(char* dst, const char* src)
 
 char* strdup(const char* s)
 {
-	/* strlen validates the sanity of the source */
+	FS_ASSERT(s != NULL);
 	char* ret = malloc(strlen(s) + 1);
 	if (ret == NULL)
 		return NULL;
