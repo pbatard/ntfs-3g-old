@@ -232,6 +232,8 @@ NtfsMount(EFI_FS* FileSystem)
 		RemoveEntryList((LIST_ENTRY*)FileSystem);
 		return EFI_NOT_FOUND;
 	}
+	/* Population of free space must be done manually */
+	ntfs_volume_get_free_space(vol);
 	FileSystem->NtfsVolume = vol;
 	ntfs_mbstoucs(vol->vol_name, &FileSystem->NtfsVolumeLabel);
 	PrintInfo(L"Mounted volume '%s'\n", FileSystem->NtfsVolumeLabel);
