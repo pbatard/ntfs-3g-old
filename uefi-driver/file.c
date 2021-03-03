@@ -57,7 +57,6 @@ FileOpen(EFI_FILE_HANDLE This, EFI_FILE_HANDLE* New,
 		PrintInfo(L"Invalid mode for read-only media\n", Name);
 		return EFI_WRITE_PROTECTED;
 	}
-	// TODO: Check attributes to see if file is read-only and also return an error then
 
 	/* Additional failures */
 	if ((StrCmp(Name, L"..") == 0) && File->IsRoot) {
@@ -69,7 +68,7 @@ FileOpen(EFI_FILE_HANDLE This, EFI_FILE_HANDLE* New,
 		return EFI_NOT_FOUND;
 	}
 
-	/* See if we're trying to reopen current (which the EFI Shell insists on doing) */
+	/* See if we're trying to reopen current (which the Shell insists on doing) */
 	if ((*Name == 0) || (StrCmp(Name, L".") == 0)) {
 		/* Prevent the creation of a file named '..' */
 		if (Mode & EFI_FILE_MODE_CREATE)
@@ -122,14 +121,10 @@ FileOpen(EFI_FILE_HANDLE This, EFI_FILE_HANDLE* New,
 		goto out;
 	}
 
-	/* See if we're dealing with the root */
-	if (Path[0] == 0 || (Path[0] == PATH_CHAR && Path[1] == 0)) {
-		if (Mode & EFI_FILE_MODE_CREATE) {
-			Status = EFI_ACCESS_DENIED;
-			goto out;
-		}
-		PrintInfo(L"  Opening <ROOT> duplicate\n");
-		NewFile->IsRoot = TRUE;
+	/* Extra check to see if we're trying to create root */
+	if (Path[0] == PATH_CHAR && Path[1] == 0 && (Mode & EFI_FILE_MODE_CREATE)) {
+		Status = EFI_ACCESS_DENIED;
+		goto out;
 	}
 
 	NewFile->Path = Path;
@@ -143,14 +138,15 @@ FileOpen(EFI_FILE_HANDLE This, EFI_FILE_HANDLE* New,
 	}
 	NewFile->Basename = &NewFile->Path[i + 1];
 
+	/* NB: The calls below may update NewFile to an existing open instance */
 	if (Mode & EFI_FILE_MODE_CREATE) {
 		NewFile->IsDir = Attributes & EFI_FILE_DIRECTORY;
 		PrintInfo(L"Creating %s '%s'\n", NewFile->IsDir ? L"dir" : L"file", NewFile->Path);
-		Status = NtfsCreate(NewFile);
+		Status = NtfsCreate(&NewFile);
 		if (EFI_ERROR(Status))
 			goto out;
 	} else {
-		Status = NtfsOpen(NewFile);
+		Status = NtfsOpen(&NewFile);
 		if (EFI_ERROR(Status)) {
 			if (Status != EFI_NOT_FOUND)
 				PrintStatusError(Status, L"Could not open file '%s'", Name);
@@ -167,8 +163,10 @@ FileOpen(EFI_FILE_HANDLE This, EFI_FILE_HANDLE* New,
 	Status = EFI_SUCCESS;
 
 out:
-	if (EFI_ERROR(Status))
+	if (EFI_ERROR(Status)) {
+		/* NB: This call only destroys the file if RefCount = 0 */
 		NtfsDestroyFile(NewFile);
+	}
 	FreePool(Path);
 	return Status;
 }
@@ -180,7 +178,6 @@ FileOpenEx(EFI_FILE_HANDLE This, EFI_FILE_HANDLE* New, CHAR16* Name,
 {
 	return FileOpen(This, New, Name, Mode, Attributes);
 }
-
 
 /**
  * Close file
@@ -241,9 +238,7 @@ FileDelete(EFI_FILE_HANDLE This)
 	FileSystem->TotalRefCount--;
 	PrintExtra(L"TotalRefCount = %d\n", FileSystem->TotalRefCount);
 
-	/* Close the file */
-	if (File->RefCount <= 0)
-		NtfsClose(File);
+	/* No need to close the file, NtfsDeleteFile will do it */
 
 	/* Don't delete root or files that have more than one ref */
 	if (File->IsRoot || File->RefCount > 0)
@@ -276,8 +271,22 @@ static INT32 DirHook(VOID* Data, CONST CHAR16* Name,
 	DIR_DATA* HookData = (DIR_DATA*)Data;
 	UINTN Len, MaxLen;
 
-	/* Never process inodes 0 and 1 */
-	if (GetInodeNumber(MRef) <= 1)
+	/*
+	 * Don't process any inodes below 11:
+	 * 0:  $MFT
+	 * 1:  $MFTMirr
+	 * 2:  $LogFile
+	 * 3:  $Volume
+	 * 4:  $AttrDef
+	 * 5:  <ROOT>
+	 * 6:  $Bitmap
+	 * 7:  $Boot
+	 * 8:  $BadClus
+	 * 9:  $Secure
+	 * 10: $UpCase
+	 * 11: $Extend
+	 */
+	if (GetInodeNumber(MRef) <= 11)
 		return 0;
 
 	/* Eliminate '.' or '..' */
@@ -713,14 +722,14 @@ FileOpenVolume(EFI_SIMPLE_FILE_SYSTEM_PROTOCOL* This, EFI_FILE_HANDLE* Root)
 	RootFile->Basename = &RootFile->Path[1];
 
 	/* Open the root file */
-	Status = NtfsOpen(RootFile);
+	Status = NtfsOpen(&RootFile);
 	if (EFI_ERROR(Status)) {
 		PrintStatusError(Status, L"Could not open root file");
 		goto out;
 	}
 
-	/* Set the inital refcounts for both the file and the file system */
-	RootFile->RefCount = 1;
+	/* Increase RefCounts (which should NOT expected to be 0 after NtfsOpen) */
+	RootFile->RefCount++;
 	FSInstance->TotalRefCount++;
 	PrintExtra(L"TotalRefCount = %d\n", FSInstance->TotalRefCount);
 

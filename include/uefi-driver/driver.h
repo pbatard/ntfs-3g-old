@@ -63,7 +63,7 @@
 #endif /* __MAKEWITH_GNUEFI */
 
 /* This forces all NTFS volumes to be opened read-only */
-#define FORCE_READONLY
+//#define FORCE_READONLY
 
 #define NTFS_MUTEX_GUID { 0xf4ed18ca, 0xcdfb, 0x40ca, { 0x97, 0xec, 0x32, 0x2a, 0x8b, 0x01, 0x4e, 0x5f } }
 
@@ -72,8 +72,8 @@
 #define PACKAGE_STRING              "ntfs-3g 2021.02.20"
 #endif
 
-#define MINIMUM_INFO_LENGTH         (sizeof(EFI_FILE_INFO) + PATH_MAX * sizeof(CHAR16))
-#define MINIMUM_FS_INFO_LENGTH      (sizeof(EFI_FILE_SYSTEM_INFO) + PATH_MAX * sizeof(CHAR16))
+#define MINIMUM_INFO_LENGTH         (sizeof(EFI_FILE_INFO) + 64 * sizeof(CHAR16))
+#define MINIMUM_FS_INFO_LENGTH      (sizeof(EFI_FILE_SYSTEM_INFO) + 64 * sizeof(CHAR16))
 
 /* A file instance */
 typedef struct _EFI_NTFS_FILE {
@@ -105,6 +105,7 @@ typedef struct _EFI_FS {
 	INT64                            Offset;
 	INTN                             MountCount;
 	INTN                             TotalRefCount;
+	LIST_ENTRY                       LookupListHead;
 } EFI_FS;
 
 /* The top of our file system instances list */
