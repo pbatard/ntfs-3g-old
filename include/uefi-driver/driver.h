@@ -83,7 +83,7 @@ typedef struct _EFI_NTFS_FILE {
 	INTN                             DirIndex;
 	INT64                            Offset;
 	CHAR16                          *Path;
-	CHAR16                          *Basename;
+	CHAR16                          *BaseName;
 	INTN                             RefCount;
 	struct _EFI_FS                  *FileSystem;
 	VOID                            *NtfsInode;

@@ -115,7 +115,7 @@ FileOpen(EFI_FILE_HANDLE This, EFI_FILE_HANDLE* New,
 	FS_ASSERT(Path[0] == PATH_CHAR);
 
 	/* Allocate and initialise an instance of a file */
-	Status = NtfsCreateFile(&NewFile, File->FileSystem);
+	Status = NtfsAllocateFile(&NewFile, File->FileSystem);
 	if (EFI_ERROR(Status)) {
 		PrintStatusError(Status, L"Could not instantiate file");
 		goto out;
@@ -131,22 +131,22 @@ FileOpen(EFI_FILE_HANDLE This, EFI_FILE_HANDLE* New,
 	/* Avoid double free on error */
 	Path = NULL;
 
-	/* Set basename */
+	/* Set BaseName */
 	for (i = SafeStrLen(NewFile->Path) - 1; i >= 0; i--) {
 		if (NewFile->Path[i] == PATH_CHAR)
 			break;
 	}
-	NewFile->Basename = &NewFile->Path[i + 1];
+	NewFile->BaseName = &NewFile->Path[i + 1];
 
 	/* NB: The calls below may update NewFile to an existing open instance */
 	if (Mode & EFI_FILE_MODE_CREATE) {
 		NewFile->IsDir = Attributes & EFI_FILE_DIRECTORY;
 		PrintInfo(L"Creating %s '%s'\n", NewFile->IsDir ? L"dir" : L"file", NewFile->Path);
-		Status = NtfsCreate(&NewFile);
+		Status = NtfsCreateFile(&NewFile);
 		if (EFI_ERROR(Status))
 			goto out;
 	} else {
-		Status = NtfsOpen(&NewFile);
+		Status = NtfsOpenFile(&NewFile);
 		if (EFI_ERROR(Status)) {
 			if (Status != EFI_NOT_FOUND)
 				PrintStatusError(Status, L"Could not open file '%s'", Name);
@@ -165,7 +165,7 @@ FileOpen(EFI_FILE_HANDLE This, EFI_FILE_HANDLE* New,
 out:
 	if (EFI_ERROR(Status)) {
 		/* NB: This call only destroys the file if RefCount = 0 */
-		NtfsDestroyFile(NewFile);
+		NtfsFreeFile(NewFile);
 	}
 	FreePool(Path);
 	return Status;
@@ -197,9 +197,9 @@ FileClose(EFI_FILE_HANDLE This)
 
 	File->RefCount--;
 	if (File->RefCount <= 0) {
-		NtfsClose(File);
-		/* NB: Basename points into File->Path and does not need to be freed */
-		NtfsDestroyFile(File);
+		NtfsCloseFile(File);
+		/* NB: BaseName points into File->Path and does not need to be freed */
+		NtfsFreeFile(File);
 	}
 
 	/* If there are no more files open on the volume, unmount it */
@@ -207,7 +207,7 @@ FileClose(EFI_FILE_HANDLE This)
 	PrintExtra(L"TotalRefCount = %d\n", FileSystem->TotalRefCount);
 	if (FileSystem->TotalRefCount <= 0) {
 		PrintInfo(L"Last file instance: Unmounting volume\n");
-		NtfsUnmount(FileSystem);
+		NtfsUnmountVolume(FileSystem);
 	}
 
 	return EFI_SUCCESS;
@@ -250,12 +250,12 @@ FileDelete(EFI_FILE_HANDLE This)
 	}
 
 	Status = NtfsDeleteFile(File);
-	NtfsDestroyFile(File);
+	NtfsFreeFile(File);
 
 	/* If there are no more files open on the volume, unmount it */
 	if (FileSystem->TotalRefCount <= 0) {
 		PrintInfo(L"Last file instance: Unmounting volume\n");
-		NtfsUnmount(FileSystem);
+		NtfsUnmountVolume(FileSystem);
 	}
 	return Status;
 }
@@ -307,7 +307,7 @@ static INT32 DirHook(VOID* Data, CONST CHAR16* Name,
 	HookData->Info->Size = sizeof(EFI_FILE_INFO) + (UINT64)Len * sizeof(CHAR16);
 
 	/* Set the Info attributes we obtain from the inode */
-	Status = NtfsGetInfo(HookData->Parent, HookData->Info,
+	Status = NtfsGetFileInfo(HookData->Parent, HookData->Info,
 		MRef, (DtType == 4));	/* DtType is 4 for directories */
 	if (EFI_ERROR(Status))
 		PrintStatusError(Status, L"Could not get directory entry info");
@@ -346,7 +346,7 @@ FileReadDir(EFI_NTFS_FILE* File, UINTN* Len, VOID* Data)
 		HookData.Info->FileName[PathLen++] = PATH_CHAR;
 
 	/* Call ReadDir(), which calls into DirHook() for each entry */
-	Status = NtfsReadDir(File, DirHook, &HookData);
+	Status = NtfsReadDirectory(File, DirHook, &HookData);
 	if (HookData.Index >= 0) {
 		/* No more entries */
 		*Len = 0;
@@ -385,7 +385,7 @@ FileRead(EFI_FILE_HANDLE This, UINTN* Len, VOID* Data)
 	if (File->IsDir)
 		return FileReadDir(File, Len, Data);
 
-	return NtfsRead(File, Data, Len);
+	return NtfsReadFile(File, Data, Len);
 }
 
 /* Ex version */
@@ -418,7 +418,7 @@ FileWrite(EFI_FILE_HANDLE This, UINTN* Len, VOID* Data)
 	if (File->IsDir)
 		return EFI_UNSUPPORTED;
 
-	return NtfsWrite(File, Data, Len);
+	return NtfsWriteFile(File, Data, Len);
 }
 
 /* Ex version */
@@ -524,7 +524,7 @@ FileGetInfo(EFI_FILE_HANDLE This, EFI_GUID* Type, UINTN* Len, VOID* Data)
 		Info->Size = *Len;
 
 		/* Set the Info attributes we obtain from the path */
-		Status = NtfsGetInfo(File, Info, 0, File->IsDir);
+		Status = NtfsGetFileInfo(File, Info, 0, File->IsDir);
 		if (EFI_ERROR(Status)) {
 			PrintStatusError(Status, L"Could not get file info");
 			return Status;
@@ -532,7 +532,7 @@ FileGetInfo(EFI_FILE_HANDLE This, EFI_GUID* Type, UINTN* Len, VOID* Data)
 
 		/* The Info struct size accounts for the NUL string terminator */
 		MaxLen = (UINTN)(Info->Size - sizeof(EFI_FILE_INFO)) / sizeof(CHAR16);
-		SafeStrCpy(Info->FileName, MaxLen, File->Basename);
+		SafeStrCpy(Info->FileName, MaxLen, File->BaseName);
 		Info->Size = sizeof(EFI_FILE_INFO) + (UINT64)MaxLen * sizeof(CHAR16);
 		*Len = (INTN)Info->Size;
 		return EFI_SUCCESS;
@@ -623,7 +623,7 @@ FileSetInfo(EFI_FILE_HANDLE This, EFI_GUID* Type, UINTN Len, VOID* Data)
 
 	if (CompareMem(Type, &gEfiFileInfoGuid, sizeof(*Type)) == 0) {
 		PrintExtra(L"Set regular file information\n");
-		Status = NtfsSetInfo(File, Info);
+		Status = NtfsSetFileInfo(File, Info);
 		if (EFI_ERROR(Status)) 
 			PrintStatusError(Status, L"Could not set file info");
 		return Status;
@@ -698,14 +698,14 @@ FileOpenVolume(EFI_SIMPLE_FILE_SYSTEM_PROTOCOL* This, EFI_FILE_HANDLE* Root)
 	PrintInfo(L"OpenVolume: %s\n", FSInstance->DevicePathString);
 
 	/* Mount the NTFS volume */
-	Status = NtfsMount(FSInstance);
+	Status = NtfsMountVolume(FSInstance);
 	if (EFI_ERROR(Status)) {
 		PrintStatusError(Status, L"Could not mount NTFS volume");
 		goto out;
 	}
 
 	/* Create the root file */
-	Status = NtfsCreateFile(&RootFile, FSInstance);
+	Status = NtfsAllocateFile(&RootFile, FSInstance);
 	if (EFI_ERROR(Status)) {
 		PrintStatusError(Status, L"Could not create root file");
 		goto out;
@@ -719,16 +719,16 @@ FileOpenVolume(EFI_SIMPLE_FILE_SYSTEM_PROTOCOL* This, EFI_FILE_HANDLE* Root)
 		goto out;
 	}
 	RootFile->Path[0] = PATH_CHAR;
-	RootFile->Basename = &RootFile->Path[1];
+	RootFile->BaseName = &RootFile->Path[1];
 
 	/* Open the root file */
-	Status = NtfsOpen(&RootFile);
+	Status = NtfsOpenFile(&RootFile);
 	if (EFI_ERROR(Status)) {
 		PrintStatusError(Status, L"Could not open root file");
 		goto out;
 	}
 
-	/* Increase RefCounts (which should NOT expected to be 0 after NtfsOpen) */
+	/* Increase RefCounts (which should NOT expected to be 0) */
 	RootFile->RefCount++;
 	FSInstance->TotalRefCount++;
 	PrintExtra(L"TotalRefCount = %d\n", FSInstance->TotalRefCount);
@@ -739,9 +739,9 @@ FileOpenVolume(EFI_SIMPLE_FILE_SYSTEM_PROTOCOL* This, EFI_FILE_HANDLE* Root)
 
 out:
 	if (EFI_ERROR(Status)) {
-		NtfsClose(RootFile);
-		NtfsDestroyFile(RootFile);
-		NtfsUnmount(FSInstance);
+		NtfsCloseFile(RootFile);
+		NtfsFreeFile(RootFile);
+		NtfsUnmountVolume(FSInstance);
 	}
 	return Status;
 }
@@ -799,7 +799,7 @@ FSUninstall(EFI_FS* This, EFI_HANDLE ControllerHandle)
 
 	if (This->TotalRefCount > 0) {
 		PrintWarning(L"Files are still open on this volume! Forcing unmount...\n");
-		NtfsUnmount(This);
+		NtfsUnmountVolume(This);
 	}
 
 	gBS->UninstallMultipleProtocolInterfaces(ControllerHandle,

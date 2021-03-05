@@ -271,9 +271,9 @@ NtfsLookupParent(EFI_NTFS_FILE* File)
 	LookupEntry* ListHead = (LookupEntry*)&File->FileSystem->LookupListHead;
 	LookupEntry* Entry;
 
-	/* Basename always points into a non empty Path */
-	FS_ASSERT(File->Basename[-1] == PATH_CHAR);
-	File->Basename[-1] = 0;
+	/* BaseName always points into a non empty Path */
+	FS_ASSERT(File->BaseName[-1] == PATH_CHAR);
+	File->BaseName[-1] = 0;
 
 	for (Entry = (LookupEntry*)ListHead->ForwardLink;
 		Entry != ListHead && Parent == NULL;
@@ -290,7 +290,7 @@ NtfsLookupParent(EFI_NTFS_FILE* File)
 	}
 
 	/* Make sure to restore the path */
-	File->Basename[-1] = PATH_CHAR;
+	File->BaseName[-1] = PATH_CHAR;
 	return Parent;
 }
 
@@ -340,7 +340,7 @@ NtfsLookupFree(LIST_ENTRY* List)
 }
 
 EFI_STATUS
-NtfsMount(EFI_FS* FileSystem)
+NtfsMountVolume(EFI_FS* FileSystem)
 {
 	ntfs_volume* vol = NULL;
 	ntfs_mount_flags flags = NTFS_MNT_EXCLUSIVE | NTFS_MNT_IGNORE_HIBERFILE | NTFS_MNT_MAY_RDONLY;
@@ -381,7 +381,7 @@ NtfsMount(EFI_FS* FileSystem)
 }
 
 EFI_STATUS
-NtfsUnmount(EFI_FS* FileSystem)
+NtfsUnmountVolume(EFI_FS* FileSystem)
 {
 	ntfs_umount(FileSystem->NtfsVolume, FALSE);
 
@@ -408,7 +408,7 @@ NtfsGetVolumeFreeSpace(VOID* NtfsVolume)
 }
 
 EFI_STATUS
-NtfsCreateFile(EFI_NTFS_FILE** File, EFI_FS* FileSystem)
+NtfsAllocateFile(EFI_NTFS_FILE** File, EFI_FS* FileSystem)
 {
 	EFI_NTFS_FILE* NewFile;
 
@@ -439,7 +439,7 @@ NtfsCreateFile(EFI_NTFS_FILE** File, EFI_FS* FileSystem)
 }
 
 VOID
-NtfsDestroyFile(EFI_NTFS_FILE* File)
+NtfsFreeFile(EFI_NTFS_FILE* File)
 {
 	if (File == NULL)
 		return;
@@ -454,7 +454,7 @@ NtfsDestroyFile(EFI_NTFS_FILE* File)
  * Open or reopen a file instance
  */
 EFI_STATUS
-NtfsOpen(EFI_NTFS_FILE** FilePointer)
+NtfsOpenFile(EFI_NTFS_FILE** FilePointer)
 {
 	EFI_NTFS_FILE *File, *Parent;
 	char *path = NULL;
@@ -465,7 +465,7 @@ NtfsOpen(EFI_NTFS_FILE** FilePointer)
 
 	if (File != NULL) {
 		/* Existing file instance found => Use that one */
-		NtfsDestroyFile(*FilePointer);
+		NtfsFreeFile(*FilePointer);
 		*FilePointer = File;
 		return EFI_SUCCESS;
 	}
@@ -478,7 +478,7 @@ NtfsOpen(EFI_NTFS_FILE** FilePointer)
 		ni = ntfs_inode_open(File->FileSystem->NtfsVolume, FILE_root);
 	} else {
 		Parent = NtfsLookupParent(File);
-		if (to_utf8(Parent ? File->Basename : File->Path, &path) <= 0)
+		if (to_utf8(Parent ? File->BaseName : File->Path, &path) <= 0)
 			return ErrnoToEfiStatus();
 		/* Use Parent inode if we have it to avoid double inode errors */
 		ni = ntfs_pathname_to_inode(File->FileSystem->NtfsVolume,
@@ -506,7 +506,7 @@ static int bullshit_cache_compare(const struct CACHED_GENERIC* cached,
  * Create new file or reopen an existing one
  */
 EFI_STATUS
-NtfsCreate(EFI_NTFS_FILE** FilePointer)
+NtfsCreateFile(EFI_NTFS_FILE** FilePointer)
 {
 	EFI_STATUS Status;
 #if CACHE_INODE_SIZE
@@ -525,7 +525,7 @@ NtfsCreate(EFI_NTFS_FILE** FilePointer)
 		/* Entries must be of the same type */
 		if (File->IsDir != (*FilePointer)->IsDir)
 			return EFI_ACCESS_DENIED;
-		NtfsDestroyFile(*FilePointer);
+		NtfsFreeFile(*FilePointer);
 		*FilePointer = File;
 		return EFI_SUCCESS;
 	}
@@ -557,7 +557,7 @@ NtfsCreate(EFI_NTFS_FILE** FilePointer)
 	}
 
 	/* Search the volume for an already existing inode */
-	sz = to_utf8(File->Basename, &basename);
+	sz = to_utf8(File->BaseName, &basename);
 	if (sz <= 0) {
 		Status = ErrnoToEfiStatus();
 		goto out;
@@ -572,8 +572,8 @@ NtfsCreate(EFI_NTFS_FILE** FilePointer)
 		}
 	} else {
 		/* Create the new file or directory */
-		ni = ntfs_create(dir_ni, 0, File->Basename,
-			SafeStrLen(File->Basename), File->IsDir ? S_IFDIR : S_IFREG);
+		ni = ntfs_create(dir_ni, 0, File->BaseName,
+			SafeStrLen(File->BaseName), File->IsDir ? S_IFDIR : S_IFREG);
 		if (ni == NULL) {
 			Status = ErrnoToEfiStatus();
 			goto out;
@@ -616,7 +616,7 @@ out:
 }
 
 VOID
-NtfsClose(EFI_NTFS_FILE* File)
+NtfsCloseFile(EFI_NTFS_FILE* File)
 {
 	if (File == NULL)
 		return;
@@ -677,7 +677,7 @@ NtfsDeleteFile(EFI_NTFS_FILE* File)
 
 	/* Delete the file */
 	r = ntfs_delete(File->FileSystem->NtfsVolume, path, File->NtfsInode,
-		dir_ni, File->Basename, SafeStrLen(File->Basename));
+		dir_ni, File->BaseName, SafeStrLen(File->BaseName));
 	free(path);
 	NtfsLookupRem(File);
 	if (r < 0) {
@@ -707,7 +707,7 @@ NtfsDeleteFile(EFI_NTFS_FILE* File)
 }
 
 EFI_STATUS
-NtfsRead(EFI_NTFS_FILE* File, VOID* Data, UINTN* Len)
+NtfsReadFile(EFI_NTFS_FILE* File, VOID* Data, UINTN* Len)
 {
 	ntfs_attr* na = NULL;
 	s64 max_read, size = *Len;
@@ -753,7 +753,7 @@ NtfsRead(EFI_NTFS_FILE* File, VOID* Data, UINTN* Len)
 }
 
 EFI_STATUS
-NtfsWrite(EFI_NTFS_FILE* File, VOID* Data, UINTN* Len)
+NtfsWriteFile(EFI_NTFS_FILE* File, VOID* Data, UINTN* Len)
 {
 	ntfs_attr* na = NULL;
 	s64 size = *Len;
@@ -810,7 +810,7 @@ NtfsSetFileOffset(EFI_NTFS_FILE* File, UINT64 Offset)
  * being used if it's non-zero).
  */
 EFI_STATUS
-NtfsGetInfo(EFI_NTFS_FILE* File, EFI_FILE_INFO* Info, CONST UINT64 MRef, BOOLEAN IsDir)
+NtfsGetFileInfo(EFI_NTFS_FILE* File, EFI_FILE_INFO* Info, CONST UINT64 MRef, BOOLEAN IsDir)
 {
 	BOOLEAN NeedClose = FALSE;
 	EFI_NTFS_FILE* Existing = NULL;
@@ -862,7 +862,7 @@ NtfsGetInfo(EFI_NTFS_FILE* File, EFI_FILE_INFO* Info, CONST UINT64 MRef, BOOLEAN
  * Update NTFS inode data with the attributes from an EFI_FILE_INFO struct.
  */
 EFI_STATUS
-NtfsSetInfo(EFI_NTFS_FILE* File, EFI_FILE_INFO* Info)
+NtfsSetFileInfo(EFI_NTFS_FILE* File, EFI_FILE_INFO* Info)
 {
 	ntfs_inode* ni = File->NtfsInode;
 	ntfs_attr* na;
@@ -904,7 +904,7 @@ NtfsSetInfo(EFI_NTFS_FILE* File, EFI_FILE_INFO* Info)
 }
 
 EFI_STATUS
-NtfsReadDir(EFI_NTFS_FILE* File, NTFS_DIRHOOK Hook, VOID* HookData)
+NtfsReadDirectory(EFI_NTFS_FILE* File, NTFS_DIRHOOK Hook, VOID* HookData)
 {
 	s64 pos = 0;
 
