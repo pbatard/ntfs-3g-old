@@ -630,10 +630,10 @@ NtfsClose(EFI_NTFS_FILE* File)
 EFI_STATUS
 NtfsDeleteFile(EFI_NTFS_FILE* File)
 {
-	EFI_NTFS_FILE* Parent;
+	EFI_NTFS_FILE *Parent = NULL, *GrandParent = NULL;
 	char* path = NULL;
 	ntfs_inode* dir_ni;
-	u64 dir_inum = 0;
+	u64 parent_inum, grandparent_inum;
 	int r, sz;
 
 	/* Convert the path to UTF-8 */
@@ -662,9 +662,26 @@ NtfsDeleteFile(EFI_NTFS_FILE* File)
 			dir_ni = ntfs_pathname_to_inode(File->FileSystem->NtfsVolume, NULL, path);
 		path[sz] = '/';
 	} else {
+		/*
+		 * ntfs-3g may attempt to reopen the file's grandparent, since it
+		 * issue ntfs_inode_close on dir_ni which, when dir_ni is dirty,
+		 * ultimately results in ntfs_inode_sync_file_name(dir_ni, NULL)
+		 * which calls ntfs_inode_open(le64_to_cpu(fn->parent_directory))
+		 * So we must make sure the grandparent's inode is closed...
+		 */
+		GrandParent = NtfsLookupParent(Parent);
+		if (GrandParent != NULL) {
+			if (GrandParent->IsRoot) {
+				GrandParent = NULL;
+			} else {
+				grandparent_inum = ((ntfs_inode*)GrandParent->NtfsInode)->mft_no;
+				ntfs_inode_close(GrandParent->NtfsInode);
+			}
+		}
+
 		/* Parent dir was already open */
 		dir_ni = Parent->NtfsInode;
-		dir_inum = dir_ni->mft_no;
+		parent_inum = dir_ni->mft_no;
 	}
 
 	/* Delete the file */
@@ -677,10 +694,22 @@ NtfsDeleteFile(EFI_NTFS_FILE* File)
 		return EFI_WARN_DELETE_FAILURE;
 	}
 
+	/* Reopen Parent or GrandParent if they were closed */
 	if (Parent != NULL) {
-		/* We have to reopen the parent, since ntfs_delete() closed it! */
-		dir_ni = ntfs_inode_open(File->FileSystem->NtfsVolume, dir_inum);
-		Parent->NtfsInode = dir_ni;
+		Parent->NtfsInode = ntfs_inode_open(File->FileSystem->NtfsVolume, parent_inum);
+		if (Parent->NtfsInode == NULL) {
+			PrintError(L"%a: Failed to reopen Parent: %a\n", __FUNCTION__, strerror(errno));
+			NtfsLookupRem(Parent);
+			return ErrnoToEfiStatus();
+		}
+	}
+	if (GrandParent != NULL) {
+		GrandParent->NtfsInode = ntfs_inode_open(File->FileSystem->NtfsVolume, grandparent_inum);
+		if (GrandParent->NtfsInode == NULL) {
+			PrintError(L"%a: Failed to reopen GrandParent: %a\n", __FUNCTION__, strerror(errno));
+			NtfsLookupRem(GrandParent);
+			return ErrnoToEfiStatus();
+		}
 	}
 
 	return EFI_SUCCESS;
