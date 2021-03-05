@@ -133,6 +133,18 @@ static EFI_STATUS ErrnoToEfiStatus(VOID)
 	}
 }
 
+static inline int _to_utf8(CONST CHAR16* Src, char** dst, char* function)
+{
+	/* ntfs_ucstombs() can be used to convert to UTF-8 */
+	int sz = ntfs_ucstombs(Src, SafeStrLen(Src), dst, 0);
+	if (sz <= 0)
+		PrintError(L"%a failed to convert '%s': %a\n",
+			function, Src, strerror(errno));
+	return sz;
+}
+
+#define to_utf8(Src, dst) _to_utf8(Src, dst, __FUNCTION__)
+
 /* Compute an EFI_TIME representation of an ntfs_time field */
 VOID
 NtfsGetEfiTime(EFI_NTFS_FILE* File, EFI_TIME* Time, INTN Type)
@@ -330,10 +342,9 @@ NtfsLookupFree(LIST_ENTRY* List)
 EFI_STATUS
 NtfsMount(EFI_FS* FileSystem)
 {
-	int sz;
 	ntfs_volume* vol = NULL;
 	ntfs_mount_flags flags = NTFS_MNT_EXCLUSIVE | NTFS_MNT_IGNORE_HIBERFILE | NTFS_MNT_MAY_RDONLY;
-	CHAR8* DevName = NULL;
+	char* device = NULL;
 
 	/* Don't double mount a volume */
 	if (FileSystem->MountCount++ > 0)
@@ -343,14 +354,8 @@ NtfsMount(EFI_FS* FileSystem)
 	flags |= NTFS_MNT_RDONLY;
 #endif
 
-	/* ntfs_ucstombs() can be used to convert to UTF-8 */
-	sz = ntfs_ucstombs(FileSystem->DevicePathString,
-		SafeStrLen(FileSystem->DevicePathString), &DevName, 0);
-	if (sz <= 0) {
-		PrintError(L"%a failed to convert '%s': %a\n",
-			__FUNCTION__, FileSystem->DevicePathString, strerror(errno));
+	if (to_utf8(FileSystem->DevicePathString, &device) <= 0)
 		return ErrnoToEfiStatus();
-	}
 
 	/* Insert this filesystem in our list so that ntfs_mount() can locate it */
 	InsertTailList(&FsListHead, (LIST_ENTRY*)FileSystem);
@@ -360,8 +365,8 @@ NtfsMount(EFI_FS* FileSystem)
 
 	ntfs_log_set_handler(ntfs_log_handler_uefi);
 
-	vol = ntfs_mount(DevName, flags);
-	FreePool(DevName);
+	vol = ntfs_mount(device, flags);
+	FreePool(device);
 	if (vol == NULL) {
 		RemoveEntryList((LIST_ENTRY*)FileSystem);
 		return EFI_NOT_FOUND;
@@ -454,7 +459,6 @@ NtfsOpen(EFI_NTFS_FILE** FilePointer)
 	EFI_NTFS_FILE *File, *Parent;
 	char *path = NULL;
 	ntfs_inode* ni;
-	int sz;
 
 	/* See if we already have a file instance open. */
 	File = NtfsLookup(*FilePointer, 0);
@@ -474,13 +478,8 @@ NtfsOpen(EFI_NTFS_FILE** FilePointer)
 		ni = ntfs_inode_open(File->FileSystem->NtfsVolume, FILE_root);
 	} else {
 		Parent = NtfsLookupParent(File);
-		sz = ntfs_ucstombs(Parent ? File->Basename : File->Path,
-			SafeStrLen(Parent ? File->Basename : File->Path), &path, 0);
-		if (sz <= 0) {
-			PrintError(L"%a failed to convert '%s': %a\n",
-				__FUNCTION__, File->Path, strerror(errno));
+		if (to_utf8(Parent ? File->Basename : File->Path, &path) <= 0)
 			return ErrnoToEfiStatus();
-		}
 		/* Use Parent inode if we have it to avoid double inode errors */
 		ni = ntfs_pathname_to_inode(File->FileSystem->NtfsVolume,
 			Parent ? Parent->NtfsInode : NULL, path);
@@ -533,10 +532,8 @@ NtfsCreate(EFI_NTFS_FILE** FilePointer)
 	File = *FilePointer;
 
 	/* Convert the path to UTF-8 */
-	sz = ntfs_ucstombs(File->Path, SafeStrLen(File->Path), &path, 0);
+	sz = to_utf8(File->Path, &path);
 	if (sz <= 0) {
-		PrintError(L"%a failed to convert '%s': %a\n",
-			__FUNCTION__, File->Path, strerror(errno));
 		Status = ErrnoToEfiStatus();
 		goto out;
 	}
@@ -548,16 +545,10 @@ NtfsCreate(EFI_NTFS_FILE** FilePointer)
 	} else {
 		/* Isolate dirname and get the directory inode */
 		FS_ASSERT(path[0] == '/');
-		for (sz; ; --sz) {
-			if (path[sz] == '/') {
-				path[sz] = 0;
-				break;
-			}
-		}
-		if (path[0] == 0)
-			dir_ni = ntfs_inode_open(File->FileSystem->NtfsVolume, FILE_root);
-		else
-			dir_ni = ntfs_pathname_to_inode(File->FileSystem->NtfsVolume, NULL, path);
+		while (path[--sz] != '/');
+		path[sz] = 0;
+		/* NB: ntfs_pathname_to_inode() with an empty path returns the root inode */
+		dir_ni = ntfs_pathname_to_inode(File->FileSystem->NtfsVolume, NULL, path);
 		path[sz] = '/';
 		if (dir_ni == NULL) {
 			Status = ErrnoToEfiStatus();
@@ -566,10 +557,8 @@ NtfsCreate(EFI_NTFS_FILE** FilePointer)
 	}
 
 	/* Search the volume for an already existing inode */
-	sz = ntfs_ucstombs(File->Basename, SafeStrLen(File->Basename), &basename, 0);
+	sz = to_utf8(File->Basename, &basename);
 	if (sz <= 0) {
-		PrintError(L"%a failed to convert '%s': %a\n",
-			__FUNCTION__, File->Basename, strerror(errno));
 		Status = ErrnoToEfiStatus();
 		goto out;
 	}
@@ -604,7 +593,6 @@ NtfsCreate(EFI_NTFS_FILE** FilePointer)
 	 * to trip libntfs-3g's caching. But even with this, we still get a
 	 * "Bad hash list, cache lookup hashing dropped" error on deletion :(
 	 */
-	path[sz] = '/';
 	item.inum = ni->mft_no;
 	item.pathname = path;
 	item.varsize = strlen(path);
@@ -650,12 +638,9 @@ NtfsDeleteFile(EFI_NTFS_FILE* File)
 	int r, sz;
 
 	/* Convert the path to UTF-8 */
-	sz = ntfs_ucstombs(File->Path, SafeStrLen(File->Path), &path, 0);
-	if (sz <= 0) {
-		PrintError(L"%a failed to convert '%s': %a\n",
-			__FUNCTION__, File->Path, strerror(errno));
+	sz = to_utf8(File->Path, &path);
+	if (sz <= 0)
 		return EFI_WARN_DELETE_FAILURE;
-	}
 
 	Parent = NtfsLookupParent(File);
 
@@ -663,16 +648,9 @@ NtfsDeleteFile(EFI_NTFS_FILE* File)
 	if (Parent == NULL) {
 		/* Isolate dirname and get the inode */
 		FS_ASSERT(path[0] == '/');
-		for (sz; sz >= 0; --sz) {
-			if (path[sz] == '/') {
-				path[sz] = 0;
-				break;
-			}
-		}
-		if (path[0] == 0)
-			dir_ni = ntfs_inode_open(File->FileSystem->NtfsVolume, FILE_root);
-		else
-			dir_ni = ntfs_pathname_to_inode(File->FileSystem->NtfsVolume, NULL, path);
+		while (path[--sz] != '/');
+		path[sz] = 0;
+		dir_ni = ntfs_pathname_to_inode(File->FileSystem->NtfsVolume, NULL, path);
 		path[sz] = '/';
 	} else {
 		/*
