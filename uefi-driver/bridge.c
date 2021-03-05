@@ -200,14 +200,19 @@ NtfsIsVolumeReadOnly(VOID* NtfsVolume)
 
 /*
  * Soooooooo.... we have to perform our own caching here, because ntfs-3g
- * was not designed to handle double open, and the UEFI Shell *DOES* some
+ * is not designed to handle double open, and the UEFI Shell *DOES* some
  * weird stuff, such as opening the same file twice, first rw then ro,
- * while leaving the rw instance opened, as well as other very illogical
+ * while keeping the rw instance opened, as well as other very illogical
  * things. Which means that, if we just hook these into ntfs_open_inode()
- * calls, all kind of bad things related to caching happen...
+ * calls, all kind of bad things related to caching are supposed to happen.
  * Ergo, we need to keep a list of all the files we already have an inode
- * for, and look it up as requested to prevent double inode open requests.
+ * for, and perform look ups to prevent double inode open.
  *
+ * Ultimately, considering that the "no two inodes shalt be open at the
+ * same time" rule was designed for multiuser/multithreaded environment
+ * where 2 separate processes might be trying to alter the volume at the
+ * same time, and that, of course, none of that applies to UEFI, we may
+ * want to move all this double inode handling into libntfs-3g itself...
  */
 
 /* A file lookup entry */
@@ -261,6 +266,7 @@ NtfsLookupParent(EFI_NTFS_FILE* File)
 	for (Entry = (LookupEntry*)ListHead->ForwardLink;
 		Entry != ListHead && Parent == NULL;
 		Entry = (LookupEntry*)Entry->ForwardLink) {
+		FS_ASSERT(Entry->File != NULL);
 		/* Need to prevent ourselves from matching */
 		if (Entry->File == File)
 			continue;
@@ -503,13 +509,14 @@ static int bullshit_cache_compare(const struct CACHED_GENERIC* cached,
 EFI_STATUS
 NtfsCreate(EFI_NTFS_FILE** FilePointer)
 {
+	EFI_STATUS Status;
 #if CACHE_INODE_SIZE
 	struct CACHED_INODE item;
 	ntfs_volume* vol = (*FilePointer)->FileSystem->NtfsVolume;
 #endif
 	EFI_NTFS_FILE *File, *Parent = NULL;
 	char *path = NULL, *basename = NULL;
-	ntfs_inode *dir_ni = NULL, *ni;
+	ntfs_inode *dir_ni = NULL, *ni = NULL;
 	int sz;
 
 	File = NtfsLookup(*FilePointer, 0);
@@ -530,29 +537,18 @@ NtfsCreate(EFI_NTFS_FILE** FilePointer)
 	if (sz <= 0) {
 		PrintError(L"%a failed to convert '%s': %a\n",
 			__FUNCTION__, File->Path, strerror(errno));
-		return ErrnoToEfiStatus();
-	}
-
-	/* Search the volume for an already existing inode */
-	ni = ntfs_pathname_to_inode(File->FileSystem->NtfsVolume, NULL, path);
-	if (ni != NULL) {
-		/* Entries must be of the same type */
-		if ((File->IsDir && !IS_DIR(ni)) || (!File->IsDir && IS_DIR(ni))) {
-			ntfs_inode_close(ni);
-			return EFI_ACCESS_DENIED;
-		}
-		goto update_cache_record;
+		Status = ErrnoToEfiStatus();
+		goto out;
 	}
 
 	/* Search for an already open parent */
 	Parent = NtfsLookupParent(File);
 	if (Parent != NULL) {
-		free(path);
 		dir_ni = Parent->NtfsInode;
 	} else {
 		/* Isolate dirname and get the directory inode */
 		FS_ASSERT(path[0] == '/');
-		for (sz; sz >= 0; --sz) {
+		for (sz; ; --sz) {
 			if (path[sz] == '/') {
 				path[sz] = 0;
 				break;
@@ -562,33 +558,41 @@ NtfsCreate(EFI_NTFS_FILE** FilePointer)
 			dir_ni = ntfs_inode_open(File->FileSystem->NtfsVolume, FILE_root);
 		else
 			dir_ni = ntfs_pathname_to_inode(File->FileSystem->NtfsVolume, NULL, path);
-		free(path);
-		if (!dir_ni)
-			return ErrnoToEfiStatus();
+		path[sz] = '/';
+		if (dir_ni == NULL) {
+			Status = ErrnoToEfiStatus();
+			goto out;
+		}
 	}
 
-	/* Create the new file or directory */
-	ni = ntfs_create(dir_ni, 0, File->Basename,
-		SafeStrLen(File->Basename), File->IsDir ? S_IFDIR : S_IFREG);
-
-	if (ni == NULL) {
-		if (Parent == NULL)
-			ntfs_inode_close(dir_ni);
-		return ErrnoToEfiStatus();
-	}
-
-update_cache_record:
-	/* Update cache lookup record */
+	/* Search the volume for an already existing inode */
 	sz = ntfs_ucstombs(File->Basename, SafeStrLen(File->Basename), &basename, 0);
 	if (sz <= 0) {
 		PrintError(L"%a failed to convert '%s': %a\n",
 			__FUNCTION__, File->Basename, strerror(errno));
-		return ErrnoToEfiStatus();
+		Status = ErrnoToEfiStatus();
+		goto out;
 	}
+
+	ni = ntfs_pathname_to_inode(File->FileSystem->NtfsVolume, dir_ni, basename);
+	if (ni != NULL) {
+		/* Entries must be of the same type */
+		if ((File->IsDir && !IS_DIR(ni)) || (!File->IsDir && IS_DIR(ni))) {
+			Status = EFI_ACCESS_DENIED;
+			goto out;
+		}
+	} else {
+		/* Create the new file or directory */
+		ni = ntfs_create(dir_ni, 0, File->Basename,
+			SafeStrLen(File->Basename), File->IsDir ? S_IFDIR : S_IFREG);
+		if (ni == NULL) {
+			Status = ErrnoToEfiStatus();
+			goto out;
+		}
+	}
+
+	/* Update cache lookup record */
 	ntfs_inode_update_mbsname(dir_ni, basename, ni->mft_no);
-	if (Parent == NULL)
-		ntfs_inode_close(dir_ni);
-	free(basename);
 
 #if CACHE_INODE_SIZE
 	/*
@@ -606,12 +610,21 @@ update_cache_record:
 	item.varsize = strlen(path);
 	ntfs_enter_cache(vol->xinode_cache, GENERIC(&item), bullshit_cache_compare);
 #endif
-	free(path);
 
-	/* A sync never hurts */
-	ntfs_inode_sync(ni);
 	File->NtfsInode = ni;
-	return EFI_SUCCESS;
+	Status = EFI_SUCCESS;
+
+out:
+	free(basename);
+	free(path);
+	/* NB: ntfs_inode_close(NULL) is fine */
+	if (Parent == NULL)
+		ntfs_inode_close(dir_ni);
+	if EFI_ERROR(Status) {
+		ntfs_inode_close(ni);
+		File->NtfsInode = NULL;
+	}
+	return Status;
 }
 
 VOID
