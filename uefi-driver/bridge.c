@@ -36,6 +36,7 @@
 #include "uefi_support.h"
 
 #define IS_DIR(ni)      (((ntfs_inode*)(ni))->mrec->flags & MFT_RECORD_IS_DIRECTORY)
+#define IS_DIRTY(ni)    (NInoDirty((ntfs_inode*)(ni)) || NInoAttrListDirty((ntfs_inode*)(ni)))
 
 /*
  * Convert an errno to an EFI_STATUS code. Adapted from:
@@ -462,39 +463,44 @@ NtfsFreeFile(EFI_NTFS_FILE* File)
  * It should also be noted that there is no guarantee that an open
  * root instance exists when we are performing this search, as the
  * UEFI Shell is wont to close root before it closes other files.
- *
- * Note that this call temporarily alters the Path parameter and that
- * it always opens a new inode if successful.
  */
 static ntfs_inode*
-NtfsOpenInodeFromPath(EFI_FS* FileSystem, CHAR16* Path)
+NtfsOpenInodeFromPath(EFI_FS* FileSystem, CONST CHAR16* Path)
 {
 	EFI_NTFS_FILE *Parent = NULL, File = { 0 };
 	char* path = NULL;
 	ntfs_inode* ni = NULL;
 	INTN Len = SafeStrLen(Path);
+	CHAR16* TmpPath = NULL;
+	int sz;
 
 	/* Special case for root */
 	if (Path[0] == 0 || (Path[0] == PATH_CHAR && Path[1] == 0))
 		return ntfs_inode_open(FileSystem->NtfsVolume, FILE_root);
 
-	FS_ASSERT(Path[0] == PATH_CHAR);
-	FS_ASSERT(Path[1] != 0);
+	TmpPath = StrDuplicate(Path);
+	if (TmpPath == NULL)
+		return NULL;
+
+	FS_ASSERT(TmpPath[0] == PATH_CHAR);
+	FS_ASSERT(TmpPath[1] != 0);
 
 	/* Create a mininum file we can use for lookup */
-	File.Path = Path;
+	File.Path = TmpPath;
 	File.FileSystem = FileSystem;
 
 	/* Go down the path to find the closest open directory */
 	while (Parent == NULL && Len > 0) {
-		while (Path[--Len] != PATH_CHAR);
-		Path[Len] = 0;
+		while (TmpPath[--Len] != PATH_CHAR);
+		TmpPath[Len] = 0;
 		Parent = NtfsLookup(&File, 0);
-		Path[Len] = PATH_CHAR;
+		TmpPath[Len] = PATH_CHAR;
 	}
 
 	/* Convert the remainer of the path to relative from Parent */
-	if (to_utf8(&Path[Len + 1], &path) <= 0)
+	sz = to_utf8(&TmpPath[Len + 1], &path);
+	FreePool(TmpPath);
+	if (sz <= 0)
 		return NULL;
 
 	/* An empty path below is fine and will return the root inode */
@@ -560,14 +566,19 @@ NtfsCreateFile(EFI_NTFS_FILE** FilePointer)
 
 	/* No open instance for this inode => Open the parent inode */
 	File = *FilePointer;
-	FS_ASSERT(File->BaseName[-1] == PATH_CHAR);
-	File->BaseName[-1] = 0;
-	Parent = NtfsLookup(File, 0);
-	if (Parent != NULL)
-		dir_ni = Parent->NtfsInode;
-	else
+
+	Parent = NtfsLookupParent(File);
+
+	/* If the lookup failed, then the parent dir is not already open */
+	if (Parent == NULL) {
+		/* Isolate dirname and get the inode */
+		FS_ASSERT(File->BaseName[-1] == PATH_CHAR);
+		File->BaseName[-1] = 0;
 		dir_ni = NtfsOpenInodeFromPath(File->FileSystem, File->Path);
-	File->BaseName[-1] = PATH_CHAR;
+		File->BaseName[-1] = PATH_CHAR;
+	} else
+		dir_ni = Parent->NtfsInode;
+
 	if (dir_ni == NULL) {
 		Status = ErrnoToEfiStatus();
 		goto out;
@@ -620,12 +631,10 @@ VOID
 NtfsCloseFile(EFI_NTFS_FILE* File)
 {
 	EFI_NTFS_FILE* Parent = NULL;
-	ntfs_inode* ni;
 	u64 parent_inum;
 
 	if (File == NULL)
 		return;
-	ni = File->NtfsInode;
 	/* 
 	 * If the inode is dirty, ntfs_inode_close() will issue an
 	 * ntfs_inode_sync() which may try to open the parent inode.
@@ -635,7 +644,7 @@ NtfsCloseFile(EFI_NTFS_FILE* File)
 	 * parent's parent is also open and dirty?", which we assert
 	 * it isn't...
 	 */
-	if (NInoDirty(ni) || NInoAttrListDirty(ni)) {
+	if (IS_DIRTY(File->NtfsInode)) {
 		Parent = NtfsLookupParent(File);
 		if (Parent != NULL) {
 			parent_inum = ((ntfs_inode*)Parent->NtfsInode)->mft_no;
@@ -661,15 +670,9 @@ EFI_STATUS
 NtfsDeleteFile(EFI_NTFS_FILE* File)
 {
 	EFI_NTFS_FILE *Parent = NULL, *GrandParent = NULL;
-	char* path = NULL;
 	ntfs_inode* dir_ni;
 	u64 parent_inum, grandparent_inum;
-	int r, sz;
-
-	/* Convert the path to UTF-8 */
-	sz = to_utf8(File->Path, &path);
-	if (sz <= 0)
-		return EFI_WARN_DELETE_FAILURE;
+	int r;
 
 	Parent = NtfsLookupParent(File);
 
@@ -680,6 +683,7 @@ NtfsDeleteFile(EFI_NTFS_FILE* File)
 		File->BaseName[-1] = 0;
 		dir_ni = NtfsOpenInodeFromPath(File->FileSystem, File->Path);
 		File->BaseName[-1] = PATH_CHAR;
+		/* TODO: We may need to open the grandparent here too... */
 	} else {
 		/*
 		 * ntfs-3g may attempt to reopen the file's grandparent, since it
@@ -704,9 +708,8 @@ NtfsDeleteFile(EFI_NTFS_FILE* File)
 	}
 
 	/* Delete the file */
-	r = ntfs_delete(File->FileSystem->NtfsVolume, path, File->NtfsInode,
+	r = ntfs_delete(File->FileSystem->NtfsVolume, NULL, File->NtfsInode,
 		dir_ni, File->BaseName, SafeStrLen(File->BaseName));
-	free(path);
 	NtfsLookupRem(File);
 	if (r < 0) {
 		PrintError(L"%a failed: %a\n", __FUNCTION__, strerror(errno));
@@ -886,18 +889,136 @@ NtfsGetFileInfo(EFI_NTFS_FILE* File, EFI_FILE_INFO* Info, CONST UINT64 MRef, BOO
 	return EFI_SUCCESS;
 }
 
+static EFI_STATUS
+NtfsMoveFile(EFI_NTFS_FILE* File, CHAR16* NewPath)
+{
+	EFI_STATUS Status = EFI_UNSUPPORTED;
+	EFI_NTFS_FILE *Parent = NULL, *NewParent = NULL;
+	CHAR16 *OldPath, *OldBaseName;
+	BOOLEAN SameDir;
+	ntfs_inode *ni, *parent_ni, *newparent_ni;
+	char* basename = NULL;
+	INTN Len = SafeStrLen(NewPath);
+
+	/* Nothing to do if new and old paths are the same */
+	if (StrCmp(File->Path, NewPath) == 0)
+		return EFI_SUCCESS;
+
+	/* Don't alter a file that is dirty */
+	if (IS_DIRTY(File->NtfsInode))
+		return EFI_ACCESS_DENIED;
+
+	OldPath = File->Path;
+	OldBaseName = File->BaseName;
+
+	FS_ASSERT(NewPath[0] == PATH_CHAR);
+	while (NewPath[--Len] != PATH_CHAR);
+	NewPath[Len] = 0;
+
+	Parent = NtfsLookupParent(File);
+	/* Isolate dirname and get the inode */
+	FS_ASSERT(File->BaseName[-1] == PATH_CHAR);
+	File->BaseName[-1] = 0;
+	SameDir = (StrCmp(NewPath, File->Path) == 0);
+	if (Parent == NULL)
+		parent_ni = NtfsOpenInodeFromPath(File->FileSystem, File->Path);
+	else
+		parent_ni = Parent->NtfsInode;
+	File->BaseName[-1] = PATH_CHAR;
+	if (parent_ni == NULL) {
+		Status = ErrnoToEfiStatus();
+		goto out;
+	}
+
+	/* Set the new FileName and BaseName */
+	File->Path = NewPath;
+	File->BaseName = &NewPath[Len + 1];
+
+	if (!SameDir) {
+		/* NewPath points to dirname => use that */
+		NewParent = NtfsLookup(File, 0);
+		if (NewParent != NULL)
+			newparent_ni = NewParent->NtfsInode;
+		else
+			newparent_ni = NtfsOpenInodeFromPath(File->FileSystem, File->Path);
+		File->BaseName[-1] = PATH_CHAR;
+		if (newparent_ni == NULL) {
+			/* Restore the old names */
+			File->Path = OldPath;
+			File->BaseName = OldBaseName;
+			Status = ErrnoToEfiStatus();
+			goto out;
+		}
+	}
+
+	/* Re-complete the target path */
+	NewPath[Len] = PATH_CHAR;
+
+	/* Create the target */
+	ni = File->NtfsInode;
+	if (ntfs_link(ni, SameDir ? parent_ni : newparent_ni, File->BaseName, StrLen(File->BaseName))) {
+		Status = ErrnoToEfiStatus();
+		File->Path = OldPath;
+		File->BaseName = OldBaseName;
+		goto out;
+	}
+
+	/* So that we free the right string on exit */
+	NewPath = OldPath;
+
+	if (ntfs_delete(ni->vol, NULL, ni, parent_ni, OldBaseName, StrLen(OldBaseName)))
+		Status = ErrnoToEfiStatus();
+
+	to_utf8(File->BaseName, &basename);
+	File->NtfsInode = ntfs_pathname_to_inode(parent_ni->vol, SameDir ? parent_ni : newparent_ni, basename);
+	free(basename);
+
+	if (File->NtfsInode == NULL)
+		Status = ErrnoToEfiStatus();
+	else
+		Status = EFI_SUCCESS;
+
+out:
+	if (Parent == NULL)
+		ntfs_inode_close(parent_ni);
+	if (!SameDir && NewParent == NULL)
+		ntfs_inode_close(newparent_ni);
+	FreePool(NewPath);
+	return Status;
+}
+
 /*
  * Update NTFS inode data with the attributes from an EFI_FILE_INFO struct.
  */
 EFI_STATUS
 NtfsSetFileInfo(EFI_NTFS_FILE* File, EFI_FILE_INFO* Info)
 {
+	EFI_STATUS Status;
+	CHAR16* Path, * c;
 	ntfs_inode* ni = File->NtfsInode;
 	ntfs_attr* na;
 	int r;
 
 	/* Resize the data section accordingly */
 	PrintExtra(L"NtfsSetInfo for inode: %lld\n", ni->mft_no);
+
+	/* If we get an absolute path, we might be moving the file */
+	if ((Info->FileName[0] == PATH_CHAR) || (Info->FileName[0] == L'\\')) {
+		/* Need to convert the path separators */
+		Path = StrDuplicate(Info->FileName);
+		if (Path == NULL)
+			return EFI_OUT_OF_RESOURCES;
+		for (c = Path; *c; c++) {
+			if (*c == L'\\')
+				*c = PATH_CHAR;
+		}
+		if (StrCmp(Path, File->Path)) {
+			Status = NtfsMoveFile(File, Path);
+			if (EFI_ERROR(Status))
+				return Status;
+		}
+		/* TODO: We Should update modification times like FUSE does */
+	}
 
 	if (Info->FileSize != ni->data_size) {
 		na = ntfs_attr_open(ni, AT_DATA, AT_UNNAMED, 0);
