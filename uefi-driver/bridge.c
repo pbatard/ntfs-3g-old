@@ -219,12 +219,6 @@ NtfsIsVolumeReadOnly(VOID* NtfsVolume)
  * calls, all kind of bad things related to caching are supposed to happen.
  * Ergo, we need to keep a list of all the files we already have an inode
  * for, and perform look ups to prevent double inode open.
- *
- * Ultimately, considering that the "no two inodes shalt be open at the
- * same time" rule was designed for multiuser/multithreaded environment
- * where 2 separate processes might be trying to alter the volume at the
- * same time, and that, of course, none of that applies to UEFI, we may
- * want to move all this double inode handling into libntfs-3g itself...
  */
 
 /* A file lookup entry */
@@ -618,9 +612,37 @@ out:
 VOID
 NtfsCloseFile(EFI_NTFS_FILE* File)
 {
+	EFI_NTFS_FILE* Parent = NULL;
+	ntfs_inode* ni;
+	u64 parent_inum;
+
 	if (File == NULL)
 		return;
+	ni = File->NtfsInode;
+	/* 
+	 * If the inode is dirty, ntfs_inode_close() will issue an
+	 * ntfs_inode_sync() which may try to open the parent inode.
+	 * Therefore, since ntfs-3g is not keen on reopen, if we do
+	 * have the parent inode open, we need to close it first.
+	 * Of course, the big question becomes: "But what if that
+	 * parent's parent is also open and dirty?", which we assert
+	 * it isn't...
+	 */
+	if (NInoDirty(ni) || NInoAttrListDirty(ni)) {
+		Parent = NtfsLookupParent(File);
+		if (Parent != NULL) {
+			parent_inum = ((ntfs_inode*)Parent->NtfsInode)->mft_no;
+			ntfs_inode_close(Parent->NtfsInode);
+		}
+	}
 	ntfs_inode_close(File->NtfsInode);
+	if (Parent != NULL) {
+		Parent->NtfsInode = ntfs_inode_open(File->FileSystem->NtfsVolume, parent_inum);
+		if (Parent->NtfsInode == NULL) {
+			PrintError(L"%a: Failed to reopen Parent: %a\n", __FUNCTION__, strerror(errno));
+			NtfsLookupRem(Parent);
+		}
+	}
 	NtfsLookupRem(File);
 }
 
@@ -899,7 +921,7 @@ NtfsSetFileInfo(EFI_NTFS_FILE* File, EFI_FILE_INFO* Info)
 	if (Info->Attribute & EFI_FILE_ARCHIVE)
 		ni->flags |= FILE_ATTR_ARCHIVE;
 
-	ntfs_inode_sync(ni);
+	/* No sync, since, per UEFI specs, change of attributes apply on close */
 	return EFI_SUCCESS;
 }
 
@@ -929,9 +951,35 @@ NtfsRenameVolume(VOID* NtfsVolume, CONST CHAR16* Label, CONST INTN Len)
 EFI_STATUS
 NtfsFlushFile(EFI_NTFS_FILE* File)
 {
+	EFI_STATUS Status = EFI_SUCCESS;
+	EFI_NTFS_FILE* Parent = NULL;
+	ntfs_inode* ni;
+	u64 parent_inum;
+
+	ni = File->NtfsInode;
+	/* Nothing to do if the file is not dirty */
+	if (!NInoDirty(ni) && NInoAttrListDirty(ni))
+		return EFI_SUCCESS;
+
+	/*
+	 * Same story as with NtfsCloseFile, with the parent 
+	 * inode needing to be closed to be able to issue sync()
+	 */
+	Parent = NtfsLookupParent(File);
+	if (Parent != NULL) {
+		parent_inum = ((ntfs_inode*)Parent->NtfsInode)->mft_no;
+		ntfs_inode_close(Parent->NtfsInode);
+	}
 	if (ntfs_inode_sync(File->NtfsInode) < 0) {
 		PrintError(L"%a failed: %a\n", __FUNCTION__, strerror(errno));
-		return ErrnoToEfiStatus();
+		Status = ErrnoToEfiStatus();
 	}
-	return EFI_SUCCESS;
+	if (Parent != NULL) {
+		Parent->NtfsInode = ntfs_inode_open(File->FileSystem->NtfsVolume, parent_inum);
+		if (Parent->NtfsInode == NULL) {
+			PrintError(L"%a: Failed to reopen Parent: %a\n", __FUNCTION__, strerror(errno));
+			NtfsLookupRem(Parent);
+		}
+	}
+	return Status;
 }
