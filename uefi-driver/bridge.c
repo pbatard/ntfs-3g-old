@@ -246,6 +246,9 @@ NtfsLookup(EFI_NTFS_FILE* File, UINT64 Inum)
 		Entry != ListHead;
 		Entry = (LookupEntry*)Entry->ForwardLink) {
 		if (Inum == 0) {
+			/* An empty file should also return root */
+			if (File->Path[0] == 0 && Entry->File->IsRoot)
+				return Entry->File;
 			if (StrCmp(File->Path, Entry->File->Path) == 0)
 				return Entry->File;
 		} else {
@@ -445,14 +448,68 @@ NtfsFreeFile(EFI_NTFS_FILE* File)
 }
 
 /*
+ * Unlike what FUSE does, we really can't use ntfs_pathname_to_inode()
+ * with a NULL dir_ni in UEFI because we always run into a situation
+ * where inodes between the inode we want and root are still open and
+ * ntfs-3g is (officially) very averse to reopening any inode, ever,
+ * which it would end up doing internally during directory traversal.
+ *
+ * So we must make sure that there aren't any inodes open between our
+ * target and the directory we start the path search with, by going
+ * down our path until we either end up with a directory instance that
+ * we already have open, or root.
+ *
+ * It should also be noted that there is no guarantee that an open
+ * root instance exists when we are performing this search, as the
+ * UEFI Shell is wont to close root before it closes other files.
+ *
+ * Note that this call temporarily alters the Path parameter and that
+ * it always opens a new inode if successful.
+ */
+static ntfs_inode*
+NtfsOpenInodeFromPath(EFI_FS* FileSystem, CHAR16* Path)
+{
+	EFI_NTFS_FILE *Parent = NULL, File = { 0 };
+	char* path = NULL;
+	ntfs_inode* ni = NULL;
+	INTN Len = SafeStrLen(Path);
+
+	/* Special case for root */
+	if (Path[0] == 0 || (Path[0] == PATH_CHAR && Path[1] == 0))
+		return ntfs_inode_open(FileSystem->NtfsVolume, FILE_root);
+
+	FS_ASSERT(Path[0] == PATH_CHAR);
+	FS_ASSERT(Path[1] != 0);
+
+	/* Create a mininum file we can use for lookup */
+	File.Path = Path;
+	File.FileSystem = FileSystem;
+
+	/* Go down the path to find the closest open directory */
+	while (Parent == NULL && Len > 0) {
+		while (Path[--Len] != PATH_CHAR);
+		Path[Len] = 0;
+		Parent = NtfsLookup(&File, 0);
+		Path[Len] = PATH_CHAR;
+	}
+
+	/* Convert the remainer of the path to relative from Parent */
+	if (to_utf8(&Path[Len + 1], &path) <= 0)
+		return NULL;
+
+	/* An empty path below is fine and will return the root inode */
+	ni = ntfs_pathname_to_inode(FileSystem->NtfsVolume, Parent ? Parent->NtfsInode : NULL, path);
+	free(path);
+	return ni;
+}
+
+/*
  * Open or reopen a file instance
  */
 EFI_STATUS
 NtfsOpenFile(EFI_NTFS_FILE** FilePointer)
 {
-	EFI_NTFS_FILE *File, *Parent;
-	char *path = NULL;
-	ntfs_inode* ni;
+	EFI_NTFS_FILE* File;
 
 	/* See if we already have a file instance open. */
 	File = NtfsLookup(*FilePointer, 0);
@@ -467,33 +524,15 @@ NtfsOpenFile(EFI_NTFS_FILE** FilePointer)
 	/* Existing file instance was not found */
 	File = *FilePointer;
 	File->IsRoot = (File->Path[0] == PATH_CHAR && File->Path[1] == 0);
-	if (File->IsRoot) {
-		/* Root directory */
-		ni = ntfs_inode_open(File->FileSystem->NtfsVolume, FILE_root);
-	} else {
-		Parent = NtfsLookupParent(File);
-		if (to_utf8(Parent ? File->BaseName : File->Path, &path) <= 0)
-			return ErrnoToEfiStatus();
-		/* Use Parent inode if we have it to avoid double inode errors */
-		ni = ntfs_pathname_to_inode(File->FileSystem->NtfsVolume,
-			Parent ? Parent->NtfsInode : NULL, path);
-		free(path);
-	}
-	if (ni == NULL)
-		return EFI_NOT_FOUND;
-	File->IsDir = IS_DIR(ni);
-	File->NtfsInode = ni;
+	File->NtfsInode = NtfsOpenInodeFromPath(File->FileSystem, File->Path);
+	if (File->NtfsInode == NULL)
+		return ErrnoToEfiStatus();
+	File->IsDir = IS_DIR(File->NtfsInode);
 
 	/* Add the new entry */
 	NtfsLookupAdd(File);
 
 	return EFI_SUCCESS;
-}
-
-static int bullshit_cache_compare(const struct CACHED_GENERIC* cached,
-	const struct CACHED_GENERIC* wanted)
-{
-	return (!cached->variable || strcmp(cached->variable, wanted->variable));
 }
 
 /*
@@ -503,18 +542,13 @@ EFI_STATUS
 NtfsCreateFile(EFI_NTFS_FILE** FilePointer)
 {
 	EFI_STATUS Status;
-#if CACHE_INODE_SIZE
-	struct CACHED_INODE item;
-	ntfs_volume* vol = (*FilePointer)->FileSystem->NtfsVolume;
-#endif
 	EFI_NTFS_FILE *File, *Parent = NULL;
-	char *path = NULL, *basename = NULL;
+	char* basename = NULL;
 	ntfs_inode *dir_ni = NULL, *ni = NULL;
 	int sz;
 
+	/* If an existing open file instance is found, use that one */
 	File = NtfsLookup(*FilePointer, 0);
-
-	/* If an existing file instance is found, use that one */
 	if (File != NULL) {
 		/* Entries must be of the same type */
 		if (File->IsDir != (*FilePointer)->IsDir)
@@ -523,40 +557,29 @@ NtfsCreateFile(EFI_NTFS_FILE** FilePointer)
 		*FilePointer = File;
 		return EFI_SUCCESS;
 	}
-	File = *FilePointer;
 
-	/* Convert the path to UTF-8 */
-	sz = to_utf8(File->Path, &path);
-	if (sz <= 0) {
+	/* No open instance for this inode => Open the parent inode */
+	File = *FilePointer;
+	FS_ASSERT(File->BaseName[-1] == PATH_CHAR);
+	File->BaseName[-1] = 0;
+	Parent = NtfsLookup(File, 0);
+	if (Parent != NULL)
+		dir_ni = Parent->NtfsInode;
+	else
+		dir_ni = NtfsOpenInodeFromPath(File->FileSystem, File->Path);
+	File->BaseName[-1] = PATH_CHAR;
+	if (dir_ni == NULL) {
 		Status = ErrnoToEfiStatus();
 		goto out;
 	}
 
-	/* Search for an already open parent */
-	Parent = NtfsLookupParent(File);
-	if (Parent != NULL) {
-		dir_ni = Parent->NtfsInode;
-	} else {
-		/* Isolate dirname and get the directory inode */
-		FS_ASSERT(path[0] == '/');
-		while (path[--sz] != '/');
-		path[sz] = 0;
-		/* NB: ntfs_pathname_to_inode() with an empty path returns the root inode */
-		dir_ni = ntfs_pathname_to_inode(File->FileSystem->NtfsVolume, NULL, path);
-		path[sz] = '/';
-		if (dir_ni == NULL) {
-			Status = ErrnoToEfiStatus();
-			goto out;
-		}
-	}
-
-	/* Search the volume for an already existing inode */
+	/* Find if the inode we are trying to create already exists */
 	sz = to_utf8(File->BaseName, &basename);
 	if (sz <= 0) {
 		Status = ErrnoToEfiStatus();
 		goto out;
 	}
-
+	/* We can safely call ntfs_pathname_to_inode since the inode is not open */
 	ni = ntfs_pathname_to_inode(File->FileSystem->NtfsVolume, dir_ni, basename);
 	if (ni != NULL) {
 		/* Entries must be of the same type */
@@ -577,28 +600,12 @@ NtfsCreateFile(EFI_NTFS_FILE** FilePointer)
 	/* Update cache lookup record */
 	ntfs_inode_update_mbsname(dir_ni, basename, ni->mft_no);
 
-#if CACHE_INODE_SIZE
-	/*
-	 * Manually update xinode_cache, since ntfs-3g produces a "Could not
-	 * delete inode cache entry" on delete unless we do... And that's even
-	 * as we do call ntfs_pathname_to_inode(), which is supposed to update
-	 * the cache. Looks like create/delete/create sequence from the UEFI
-	 * Shell, when doing something like 'echo blah > file', is odd enough
-	 * to trip libntfs-3g's caching. But even with this, we still get a
-	 * "Bad hash list, cache lookup hashing dropped" error on deletion :(
-	 */
-	item.inum = ni->mft_no;
-	item.pathname = path;
-	item.varsize = strlen(path);
-	ntfs_enter_cache(vol->xinode_cache, GENERIC(&item), bullshit_cache_compare);
-#endif
-
 	File->NtfsInode = ni;
+	NtfsLookupAdd(File);
 	Status = EFI_SUCCESS;
 
 out:
 	free(basename);
-	free(path);
 	/* NB: ntfs_inode_close(NULL) is fine */
 	if (Parent == NULL)
 		ntfs_inode_close(dir_ni);
@@ -669,11 +676,10 @@ NtfsDeleteFile(EFI_NTFS_FILE* File)
 	/* If the lookup failed, then the parent dir is not already open */
 	if (Parent == NULL) {
 		/* Isolate dirname and get the inode */
-		FS_ASSERT(path[0] == '/');
-		while (path[--sz] != '/');
-		path[sz] = 0;
-		dir_ni = ntfs_pathname_to_inode(File->FileSystem->NtfsVolume, NULL, path);
-		path[sz] = '/';
+		FS_ASSERT(File->BaseName[-1] == PATH_CHAR);
+		File->BaseName[-1] = 0;
+		dir_ni = NtfsOpenInodeFromPath(File->FileSystem, File->Path);
+		File->BaseName[-1] = PATH_CHAR;
 	} else {
 		/*
 		 * ntfs-3g may attempt to reopen the file's grandparent, since it
