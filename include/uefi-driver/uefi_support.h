@@ -128,6 +128,22 @@ static __inline UINTN _SafeStrLen(CONST CHAR16* String, CONST CHAR8* File,
 #define SafeStrLen(s) _SafeStrLen(s, __FILE__, __LINE__)
 
 /*
+ * There's no string duplication in EDK2
+ */
+static __inline CHAR16* StrDup(CONST CHAR16* Src)
+{
+	UINTN   Len;
+	CHAR16* Dst;
+
+	/* Prefer SafeStrLen() over StrSize() for the checks */
+	Len = (SafeStrLen(Src) + 1) * sizeof(CHAR16);
+	Dst = AllocatePool(Len);
+	if (Dst != NULL)
+		CopyMem(Dst, Src, Len);
+	return Dst;
+}
+
+/*
  * Prototypes for the function calls provided in support.c
  */
 CHAR16* GuidToStr(EFI_GUID* Guid);
