@@ -1,4 +1,4 @@
-/* driver.h -ntfs-3g UEFI filesystem driver */
+/* uefi_driver.h - ntfs-3g UEFI filesystem driver */
 /*
  *  Copyright © 2021 Pete Batard <pete@akeo.ie>
  *
@@ -29,24 +29,20 @@
 #include <Base.h>
 #include <Uefi.h>
 
-#include <Library/DebugLib.h>
 #include <Library/BaseLib.h>
 #include <Library/BaseMemoryLib.h>
-#include <Library/UefiRuntimeServicesTableLib.h>
 #include <Library/UefiDriverEntryPoint.h>
 #include <Library/UefiBootServicesTableLib.h>
+#include <Library/UefiRuntimeServicesTableLib.h>
 #include <Library/MemoryAllocationLib.h>
 #include <Library/DevicePathLib.h>
 #include <Library/PrintLib.h>
 #include <Library/UefiLib.h>
 
-#include <Protocol/UnicodeCollation.h>
 #include <Protocol/LoadedImage.h>
 #include <Protocol/DriverBinding.h>
 #include <Protocol/DevicePathFromText.h>
 #include <Protocol/DevicePathToText.h>
-#include <Protocol/DebugPort.h>
-#include <Protocol/DebugSupport.h>
 #include <Protocol/SimpleFileSystem.h>
 #include <Protocol/BlockIo.h>
 #include <Protocol/BlockIo2.h>
@@ -62,8 +58,8 @@
 
 #endif /* __MAKEWITH_GNUEFI */
 
-/* This forces all NTFS volumes to be opened read-only */
-//#define FORCE_READONLY
+/* Define the following to force NTFS volumes to be opened read-only */
+/* #undef FORCE_READONLY */
 
 #define NTFS_MUTEX_GUID { 0xf4ed18ca, 0xcdfb, 0x40ca, { 0x97, 0xec, 0x32, 0x2a, 0x8b, 0x01, 0x4e, 0x5f } }
 
@@ -117,7 +113,7 @@ extern EFI_STATUS EFIAPI FileOpenVolume(EFI_SIMPLE_FILE_SYSTEM_PROTOCOL* This,
 	EFI_FILE_HANDLE* Root);
 
 /*
- * All the public file system operations that are defined in file.c
+ * All the public file system operations that are defined in uefi_file.c
  */
 EFI_STATUS EFIAPI FileOpen(EFI_FILE_HANDLE This, EFI_FILE_HANDLE* New,
 	CHAR16* Name, UINT64 Mode, UINT64 Attributes);

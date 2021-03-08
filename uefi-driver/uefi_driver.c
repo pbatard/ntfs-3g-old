@@ -1,4 +1,4 @@
-/* driver.c - ntfs-3g UEFI filesystem driver */
+/* uefi_driver.c - ntfs-3g UEFI filesystem driver */
 /*
  *  Copyright © 2014-2021 Pete Batard <pete@akeo.ie>
  *  Based on iPXE's efi_driver.c and efi_file.c:
@@ -18,7 +18,7 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "driver.h"
+#include "uefi_driver.h"
 #include "uefi_logging.h"
 #include "uefi_support.h"
 

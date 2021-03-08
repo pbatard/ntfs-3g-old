@@ -20,7 +20,7 @@
 
 #include <time.h>
 
-#include "driver.h"
+#include "uefi_driver.h"
 
 #ifndef _MSC_VER
 #if !defined(__GNUC__) || (__GNUC__ < 5)

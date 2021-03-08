@@ -1,4 +1,4 @@
-/* bridge.c - libntfs-3g interface for UEFI */
+/* uefi_bridge.c - libntfs-3g interface for UEFI */
 /*
  *  Copyright © 2021 Pete Batard <pete@akeo.ie>
  *
@@ -30,8 +30,8 @@
 #include "dir.h"
 #include "cache.h"
 
-#include "driver.h"
-#include "bridge.h"
+#include "uefi_driver.h"
+#include "uefi_bridge.h"
 #include "uefi_logging.h"
 #include "uefi_support.h"
 

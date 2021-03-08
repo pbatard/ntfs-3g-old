@@ -1,4 +1,4 @@
-/* file.c - SimpleFileIo Interface */
+/* uefi_file.c - SimpleFileIo Interface */
 /*
  *  Copyright © 2014-2021 Pete Batard <pete@akeo.ie>
  *  Based on iPXE's efi_driver.c and efi_file.c:
@@ -18,8 +18,8 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "driver.h"
-#include "bridge.h"
+#include "uefi_driver.h"
+#include "uefi_bridge.h"
 #include "uefi_logging.h"
 #include "uefi_support.h"
 
@@ -53,7 +53,7 @@ FileOpen(EFI_FILE_HANDLE This, EFI_FILE_HANDLE* New,
 	PrintInfo(L"Open(" PERCENT_P L"%s, \"%s\", Mode %llx)\n", (UINTN)This,
 		File->IsRoot ? L" <ROOT>" : L"", Name, Mode);
 
-	if (NtfsIsVolumeReadOnly(File->FileSystem->NtfsVolume) &&  Mode != EFI_FILE_MODE_READ) {
+	if (NtfsIsVolumeReadOnly(File->FileSystem->NtfsVolume) && (Mode != EFI_FILE_MODE_READ)) {
 		PrintInfo(L"Invalid mode for read-only media\n", Name);
 		return EFI_WRITE_PROTECTED;
 	}
@@ -610,7 +610,7 @@ FileSetInfo(EFI_FILE_HANDLE This, EFI_GUID* Type, UINTN Len, VOID* Data)
 	if (CompareMem(Type, &gEfiFileInfoGuid, sizeof(*Type)) == 0) {
 		PrintExtra(L"Set regular file information\n");
 		Status = NtfsSetFileInfo(File, Info);
-		if (EFI_ERROR(Status)) 
+		if (EFI_ERROR(Status))
 			PrintStatusError(Status, L"Could not set file info");
 		return Status;
 	} else if (CompareMem(Type, &gEfiFileSystemVolumeLabelInfoIdGuid, sizeof(*Type)) == 0) {

@@ -1,4 +1,4 @@
-/* bridge.h - libntfs-3g interface for UEFI */
+/* uefi_bridge.h - libntfs-3g interface for UEFI */
 /*
  *  Copyright © 2021 Pete Batard <pete@akeo.ie>
  *
@@ -18,7 +18,7 @@
 
 #pragma once
 
-#include "driver.h"
+#include "uefi_driver.h"
 
 /* Used with NtfsGetEfiTime */
 #define TIME_CREATED        0

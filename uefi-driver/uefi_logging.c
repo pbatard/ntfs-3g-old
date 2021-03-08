@@ -1,4 +1,4 @@
-/* logging.c - UEFI logging */
+/* uefi_logging.c - UEFI logging */
 /*
  *  Copyright © 2014-2021 Pete Batard <pete@akeo.ie>
  *
@@ -16,7 +16,7 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "bridge.h"
+#include "uefi_bridge.h"
 #include "uefi_support.h"
 #include "uefi_logging.h"
 

@@ -25,6 +25,7 @@ QEMU_PATH  = "C:\Program Files\qemu\"
 ' You can add something like "-S -gdb tcp:127.0.0.1:1234" if you plan to use gdb to debug
 ' You can also use '-serial file:serial.log' instead of '-serial vc' to send output to a file
 QEMU_OPTS  = "-nodefaults -vga std -serial vc"
+'QEMU_OPTS  = "-nodefaults -vga std -serial file:serial.log"
 ' Set to True if you don't want to execute the bootloader
 LIST_ONLY  = True
 ' Set to True if you need to download a file that might be cached locally
@@ -74,9 +75,9 @@ FW_FILE    = FW_BASE & "_" & FW_ARCH & ".fd"
 FW_URL     = FW_DIR & FW_ZIP
 QEMU_EXE   = "qemu-system-" & QEMU_ARCH & "w.exe"
 
-LOG_LEVEL  = 0
+LOG_LEVEL  = 1
 If (CONF = "Debug") Then
-  LOG_LEVEL = 4
+  LOG_LEVEL = 5
 End If
 IMG_EXT    = ".vhd"
 IMG        = FS & IMG_EXT
@@ -187,6 +188,6 @@ Set file = fso.CreateTextFile("image\efi\boot\startup.nsh", True)
 Call file.Write("set FS_LOGGING " & LOG_LEVEL & vbCrLf &_
   "load fs0:\" & DRV & vbCrLf &_
   "map -r" & vbCrLf &_
-  PRE_CMD & MNT & "\EFI\Boot\boot" & UEFI_EXT & ".efi" & vbCrLf)
+  "fs1:" & vbCrLf)
 Call file.Close()
 Call shell.Run("""" & QEMU_PATH & QEMU_EXE & """ " & QEMU_OPTS & " -L . -bios " & FW_FILE & " -hda fat:rw:image -hdb " & IMG, 1, True)

@@ -2,8 +2,8 @@
 #  Component Description File for NTFS module.
 #
 #  This UEFI driver detects the NTFS file system in the disk.
-#  It also produces the Simple File System protocol for the consumer to
-#  perform file and directory operations on the disk.
+#  It also produces the Simple File System protocol for the consumer
+#  to perform file and directory operations on the disk.
 #
 #  Copyright (c) 2021, Pete Batard <pete@akeo.ie>
 #
@@ -51,11 +51,11 @@
   ../libntfs-3g/logging.c
   ../libntfs-3g/uefi_compat.c
   ../libntfs-3g/uefi_io.c
-  ../uefi-driver/bridge.c
-  ../uefi-driver/driver.c
-  ../uefi-driver/file.c
-  ../uefi-driver/logging.c
-  ../uefi-driver/support.c
+  ../uefi-driver/uefi_bridge.c
+  ../uefi-driver/uefi_driver.c
+  ../uefi-driver/uefi_file.c
+  ../uefi-driver/uefi_logging.c
+  ../uefi-driver/uefi_support.c
 
 [Packages]
   uefi-driver.dec

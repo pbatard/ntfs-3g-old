@@ -1,4 +1,4 @@
-/* support.c - UEFI support functions (path, time, etc.) */
+/* uefi_support.c - UEFI support functions (path, time, etc.) */
 /*
  *  Copyright © 2014-2021 Pete Batard <pete@akeo.ie>
  *

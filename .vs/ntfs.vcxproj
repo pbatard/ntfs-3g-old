@@ -38,17 +38,17 @@
     <None Include="debug.vbs" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\include\uefi-driver\bridge.h" />
-    <ClInclude Include="..\include\uefi-driver\driver.h" />
+    <ClInclude Include="..\include\uefi-driver\uefi_bridge.h" />
+    <ClInclude Include="..\include\uefi-driver\uefi_driver.h" />
     <ClInclude Include="..\include\uefi-driver\uefi_logging.h" />
     <ClInclude Include="..\include\uefi-driver\uefi_support.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\uefi-driver\bridge.c" />
-    <ClCompile Include="..\uefi-driver\driver.c" />
-    <ClCompile Include="..\uefi-driver\file.c" />
-    <ClCompile Include="..\uefi-driver\logging.c" />
-    <ClCompile Include="..\uefi-driver\support.c" />
+    <ClCompile Include="..\uefi-driver\uefi_bridge.c" />
+    <ClCompile Include="..\uefi-driver\uefi_driver.c" />
+    <ClCompile Include="..\uefi-driver\uefi_file.c" />
+    <ClCompile Include="..\uefi-driver\uefi_logging.c" />
+    <ClCompile Include="..\uefi-driver\uefi_support.c" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{DFA0BA98-D0BA-4176-9A34-B5BA6355B1DE}</ProjectGuid>

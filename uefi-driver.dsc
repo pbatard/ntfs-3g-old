@@ -1,5 +1,5 @@
 ## @file
-#  Ntfs Driver Module
+#  NTFS Driver Module
 #
 #  Copyright (c) 2021, Pete Batard <pete@akeo.ie>
 #
@@ -61,4 +61,4 @@
 ###################################################################################################
 
 [Components]
-  uefi-driver/driver.inf
+  uefi-driver/uefi_driver.inf
