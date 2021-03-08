@@ -188,7 +188,7 @@ NtfsSetLogger(UINTN Level)
 {
 	/* Critical log level is always enabled */
 	UINT32 levels = NTFS_LOG_LEVEL_CRITICAL;
-	
+
 	if (Level >= FS_LOGLEVEL_ERROR)
 		levels |= NTFS_LOG_LEVEL_ERROR | NTFS_LOG_LEVEL_PERROR;
 	if (Level >= FS_LOGLEVEL_WARNING)
@@ -265,7 +265,7 @@ NtfsLookup(EFI_NTFS_FILE* File, UINT64 Inum, BOOLEAN IgnoreSelf)
 				return Entry->File;
 		} else {
 			ni = Entry->File->NtfsInode;
-			if (ni->mft_no == GetInodeNumber(Inum)) 
+			if (ni->mft_no == GetInodeNumber(Inum))
 				return Entry->File;
 		}
 	}
@@ -341,6 +341,69 @@ NtfsLookupFree(LIST_ENTRY* List)
 		RemoveEntryList((LIST_ENTRY*)Entry);
 		FreePool(Entry);
 	}
+}
+
+/*
+ * Wrapper for ntfs_pathname_to_inode()
+ *
+ * Unlike what FUSE does, we really can't use ntfs_pathname_to_inode()
+ * with a NULL dir_ni in UEFI because we always run into a situation
+ * where inodes between the inode we want and root are still open and
+ * ntfs-3g is (officially) very averse to reopening any inode, ever,
+ * which it would end up doing internally during directory traversal.
+ *
+ * So we must make sure that there aren't any inodes open between our
+ * target and the directory we start the path search with, by going
+ * down our path until we either end up with a directory instance that
+ * we already have open, or root.
+ *
+ * It should be pointed out that there is no guarantee that an open
+ * root instance exists while performing this search, as the UEFI
+ * Shell is wont to close root before it closes other files.
+ */
+static ntfs_inode*
+NtfsOpenInodeFromPath(EFI_FS* FileSystem, CONST CHAR16* Path)
+{
+	EFI_NTFS_FILE* Parent = NULL, File = { 0 };
+	char* path = NULL;
+	ntfs_inode* ni = NULL;
+	INTN Len = SafeStrLen(Path);
+	CHAR16* TmpPath = NULL;
+	int sz;
+
+	/* Special case for root */
+	if (Path[0] == 0 || (Path[0] == PATH_CHAR && Path[1] == 0))
+		return ntfs_inode_open(FileSystem->NtfsVolume, FILE_root);
+
+	TmpPath = StrDup(Path);
+	if (TmpPath == NULL)
+		return NULL;
+
+	FS_ASSERT(TmpPath[0] == PATH_CHAR);
+	FS_ASSERT(TmpPath[1] != 0);
+
+	/* Create a mininum file we can use for lookup */
+	File.Path = TmpPath;
+	File.FileSystem = FileSystem;
+
+	/* Go down the path to find the closest open directory */
+	while (Parent == NULL && Len > 0) {
+		while (TmpPath[--Len] != PATH_CHAR);
+		TmpPath[Len] = 0;
+		Parent = NtfsLookupPath(&File, FALSE);
+		TmpPath[Len] = PATH_CHAR;
+	}
+
+	/* Convert the remainer of the path to relative from Parent */
+	sz = to_utf8(&TmpPath[Len + 1], &path);
+	FreePool(TmpPath);
+	if (sz <= 0)
+		return NULL;
+
+	/* An empty path below is fine and will return the root inode */
+	ni = ntfs_pathname_to_inode(FileSystem->NtfsVolume, Parent ? Parent->NtfsInode : NULL, path);
+	free(path);
+	return ni;
 }
 
 /*
@@ -470,69 +533,6 @@ NtfsFreeFile(EFI_NTFS_FILE* File)
 }
 
 /*
- * Wrapper for ntfs_pathname_to_inode()
- *
- * Unlike what FUSE does, we really can't use ntfs_pathname_to_inode()
- * with a NULL dir_ni in UEFI because we always run into a situation
- * where inodes between the inode we want and root are still open and
- * ntfs-3g is (officially) very averse to reopening any inode, ever,
- * which it would end up doing internally during directory traversal.
- *
- * So we must make sure that there aren't any inodes open between our
- * target and the directory we start the path search with, by going
- * down our path until we either end up with a directory instance that
- * we already have open, or root.
- *
- * It should be pointed out that there is no guarantee that an open
- * root instance exists while performing this search, as the UEFI
- * Shell is wont to close root before it closes other files.
- */
-static ntfs_inode*
-NtfsOpenInodeFromPath(EFI_FS* FileSystem, CONST CHAR16* Path)
-{
-	EFI_NTFS_FILE *Parent = NULL, File = { 0 };
-	char* path = NULL;
-	ntfs_inode* ni = NULL;
-	INTN Len = SafeStrLen(Path);
-	CHAR16* TmpPath = NULL;
-	int sz;
-
-	/* Special case for root */
-	if (Path[0] == 0 || (Path[0] == PATH_CHAR && Path[1] == 0))
-		return ntfs_inode_open(FileSystem->NtfsVolume, FILE_root);
-
-	TmpPath = StrDup(Path);
-	if (TmpPath == NULL)
-		return NULL;
-
-	FS_ASSERT(TmpPath[0] == PATH_CHAR);
-	FS_ASSERT(TmpPath[1] != 0);
-
-	/* Create a mininum file we can use for lookup */
-	File.Path = TmpPath;
-	File.FileSystem = FileSystem;
-
-	/* Go down the path to find the closest open directory */
-	while (Parent == NULL && Len > 0) {
-		while (TmpPath[--Len] != PATH_CHAR);
-		TmpPath[Len] = 0;
-		Parent = NtfsLookupPath(&File, FALSE);
-		TmpPath[Len] = PATH_CHAR;
-	}
-
-	/* Convert the remainer of the path to relative from Parent */
-	sz = to_utf8(&TmpPath[Len + 1], &path);
-	FreePool(TmpPath);
-	if (sz <= 0)
-		return NULL;
-
-	/* An empty path below is fine and will return the root inode */
-	ni = ntfs_pathname_to_inode(FileSystem->NtfsVolume, Parent ? Parent->NtfsInode : NULL, path);
-	free(path);
-	return ni;
-}
-
-/*
  * Open or reopen a file instance
  */
 EFI_STATUS
@@ -563,6 +563,242 @@ NtfsOpenFile(EFI_NTFS_FILE** FilePointer)
 
 	return EFI_SUCCESS;
 }
+
+/*
+ * Close an open file
+ */
+VOID
+NtfsCloseFile(EFI_NTFS_FILE* File)
+{
+	EFI_NTFS_FILE* Parent = NULL;
+	u64 parent_inum;
+
+	if (File == NULL)
+		return;
+	/*
+	 * If the inode is dirty, ntfs_inode_close() will issue an
+	 * ntfs_inode_sync() which may try to open the parent inode.
+	 * Therefore, since ntfs-3g is not keen on reopen, if we do
+	 * have the parent inode open, we need to close it first.
+	 * Of course, the big question becomes: "But what if that
+	 * parent's parent is also open and dirty?", which we assert
+	 * it isn't...
+	 */
+	if (IS_DIRTY(File->NtfsInode)) {
+		Parent = NtfsLookupParent(File);
+		if (Parent != NULL) {
+			parent_inum = ((ntfs_inode*)Parent->NtfsInode)->mft_no;
+			ntfs_inode_close(Parent->NtfsInode);
+		}
+	}
+	ntfs_inode_close(File->NtfsInode);
+	if (Parent != NULL) {
+		Parent->NtfsInode = ntfs_inode_open(File->FileSystem->NtfsVolume, parent_inum);
+		if (Parent->NtfsInode == NULL) {
+			PrintError(L"%a: Failed to reopen Parent: %a\n", __FUNCTION__, strerror(errno));
+			NtfsLookupRem(Parent);
+		}
+	}
+	NtfsLookupRem(File);
+}
+
+/*
+ * Read from an open file into a data buffer
+ */
+EFI_STATUS
+NtfsReadFile(EFI_NTFS_FILE* File, VOID* Data, UINTN* Len)
+{
+	ntfs_attr* na = NULL;
+	s64 max_read, size = *Len;
+
+	*Len = 0;
+
+	na = ntfs_attr_open(File->NtfsInode, AT_DATA, AT_UNNAMED, 0);
+	if (!na) {
+		PrintError(L"%a failed: %a\n", __FUNCTION__, strerror(errno));
+		return ErrnoToEfiStatus();
+	}
+
+	max_read = na->data_size;
+	if (File->Offset + size > max_read) {
+		if (max_read < File->Offset) {
+			*Len = 0;
+			ntfs_attr_close(na);
+			return EFI_SUCCESS;
+		}
+		size = max_read - File->Offset;
+	}
+
+	while (size > 0) {
+		s64 ret = ntfs_attr_pread(na, File->Offset, size, &((UINT8*)Data)[*Len]);
+		if (ret != size)
+			PrintError(L"%a: Error reading inode %lld at offset %lld: %lld <> %lld",
+				((ntfs_inode*)File->NtfsInode)->mft_no,
+				File->Offset, *Len, ret);
+		if (ret <= 0 || ret > size) {
+			ntfs_attr_close(na);
+			if (ret >= 0)
+				errno = EIO;
+			PrintError(L"%a failed: %a\n", __FUNCTION__, strerror(errno));
+			return ErrnoToEfiStatus();
+		}
+		size -= ret;
+		File->Offset += ret;
+		*Len += ret;
+	}
+
+	ntfs_attr_close(na);
+
+	if (!NtfsIsVolumeReadOnly(File->FileSystem->NtfsVolume))
+		ntfs_inode_update_times(File->NtfsInode, NTFS_UPDATE_MCTIME);
+
+	return EFI_SUCCESS;
+}
+
+/*
+ * Return the current size occupied by a file
+ */
+UINT64
+NtfsGetFileSize(EFI_NTFS_FILE* File)
+{
+	if (File->NtfsInode == NULL)
+		return 0;
+	return ((ntfs_inode*)File->NtfsInode)->data_size;
+}
+
+/*
+ * Return the current file offset
+ */
+UINT64
+NtfsGetFileOffset(EFI_NTFS_FILE* File)
+{
+	return File->Offset;
+}
+
+/*
+ * Set the current file offset
+ */
+VOID
+NtfsSetFileOffset(EFI_NTFS_FILE* File, UINT64 Offset)
+{
+	File->Offset = Offset;
+}
+
+/*
+ * Fill an EFI_FILE_INFO struct with data from the NTFS inode.
+ * This function takes either a File or an MREF (with the MREF
+ * being used if it's non-zero).
+ */
+EFI_STATUS
+NtfsGetFileInfo(EFI_NTFS_FILE* File, EFI_FILE_INFO* Info, CONST UINT64 MRef, BOOLEAN IsDir)
+{
+	BOOLEAN NeedClose = FALSE;
+	EFI_NTFS_FILE* Existing = NULL;
+	ntfs_inode* ni = File->NtfsInode;
+
+	/*
+	 * If Non-zero MREF, we are listing a dir, in which case we need
+	 * to open (and later close) the inode.
+	 */
+	if (MRef != 0) {
+		Existing = NtfsLookupInum(File, MRef);
+		if (Existing != NULL) {
+			ni = Existing->NtfsInode;
+		} else {
+			ni = ntfs_inode_open(File->FileSystem->NtfsVolume, MRef);
+			NeedClose = TRUE;
+		}
+	} else
+		PrintExtra(L"NtfsGetInfo for inode: %lld\n", ni->mft_no);
+
+	if (ni == NULL)
+		return EFI_NOT_FOUND;
+
+	Info->FileSize = ni->data_size;
+	Info->PhysicalSize = ni->allocated_size;
+	UnixTimeToEfiTime(NTFS_TO_UNIX_TIME(ni->creation_time), &Info->CreateTime);
+	UnixTimeToEfiTime(NTFS_TO_UNIX_TIME(ni->last_access_time), &Info->LastAccessTime);
+	UnixTimeToEfiTime(NTFS_TO_UNIX_TIME(ni->last_data_change_time), &Info->ModificationTime);
+
+	Info->Attribute = 0;
+	if (IsDir)
+		Info->Attribute |= EFI_FILE_DIRECTORY;
+	if (ni->flags & FILE_ATTR_READONLY | NtfsIsVolumeReadOnly(File->FileSystem->NtfsVolume))
+		Info->Attribute |= EFI_FILE_READ_ONLY;
+	if (ni->flags & FILE_ATTR_HIDDEN)
+		Info->Attribute |= EFI_FILE_HIDDEN;
+	if (ni->flags & FILE_ATTR_SYSTEM)
+		Info->Attribute |= EFI_FILE_SYSTEM;
+	if (ni->flags & FILE_ATTR_ARCHIVE)
+		Info->Attribute |= EFI_FILE_ARCHIVE;
+
+	if (NeedClose)
+		ntfs_inode_close(ni);
+
+	return EFI_SUCCESS;
+}
+
+/*
+ * Read the content of an existing directory
+ */
+EFI_STATUS
+NtfsReadDirectory(EFI_NTFS_FILE* File, NTFS_DIRHOOK Hook, VOID* HookData)
+{
+	s64 pos = 0;
+
+	if (ntfs_readdir(File->NtfsInode, &pos, HookData, Hook)) {
+		PrintError(L"%a failed: %a\n", __FUNCTION__, strerror(errno));
+		return ErrnoToEfiStatus();
+	}
+
+	return EFI_SUCCESS;
+}
+
+/*
+ * For extra safety, as well as in an effort to reduce the size of the
+ * read-only driver executable, guard all the function calls that alter
+ * volume data.
+ */
+
+#ifdef FORCE_READONLY
+
+EFI_STATUS
+NtfsCreateFile(EFI_NTFS_FILE** FilePointer)
+{
+	return EFI_WRITE_PROTECTED;
+}
+
+EFI_STATUS
+NtfsDeleteFile(EFI_NTFS_FILE* File)
+{
+	return EFI_WRITE_PROTECTED;
+}
+
+EFI_STATUS
+NtfsWriteFile(EFI_NTFS_FILE* File, VOID* Data, UINTN* Len)
+{
+	return EFI_WRITE_PROTECTED;
+}
+
+EFI_STATUS
+NtfsSetFileInfo(EFI_NTFS_FILE* File, EFI_FILE_INFO* Info)
+{
+	return EFI_WRITE_PROTECTED;
+}
+
+EFI_STATUS
+NtfsFlushFile(EFI_NTFS_FILE* File)
+{
+	return EFI_SUCCESS;
+}
+
+EFI_STATUS
+NtfsRenameVolume(VOID* NtfsVolume, CONST CHAR16* Label, CONST INTN Len)
+{
+	return EFI_WRITE_PROTECTED;
+}
+
+#else /* FORCE_READONLY */
 
 /*
  * Create new file or reopen an existing one
@@ -661,46 +897,8 @@ out:
 }
 
 /*
- * Close an open file
- */
-VOID
-NtfsCloseFile(EFI_NTFS_FILE* File)
-{
-	EFI_NTFS_FILE* Parent = NULL;
-	u64 parent_inum;
-
-	if (File == NULL)
-		return;
-	/* 
-	 * If the inode is dirty, ntfs_inode_close() will issue an
-	 * ntfs_inode_sync() which may try to open the parent inode.
-	 * Therefore, since ntfs-3g is not keen on reopen, if we do
-	 * have the parent inode open, we need to close it first.
-	 * Of course, the big question becomes: "But what if that
-	 * parent's parent is also open and dirty?", which we assert
-	 * it isn't...
-	 */
-	if (IS_DIRTY(File->NtfsInode)) {
-		Parent = NtfsLookupParent(File);
-		if (Parent != NULL) {
-			parent_inum = ((ntfs_inode*)Parent->NtfsInode)->mft_no;
-			ntfs_inode_close(Parent->NtfsInode);
-		}
-	}
-	ntfs_inode_close(File->NtfsInode);
-	if (Parent != NULL) {
-		Parent->NtfsInode = ntfs_inode_open(File->FileSystem->NtfsVolume, parent_inum);
-		if (Parent->NtfsInode == NULL) {
-			PrintError(L"%a: Failed to reopen Parent: %a\n", __FUNCTION__, strerror(errno));
-			NtfsLookupRem(Parent);
-		}
-	}
-	NtfsLookupRem(File);
-}
-
-/*
  * Delete a file or directory from the volume
- * 
+ *
  * Like FileDelete(), this call should only
  * return EFI_WARN_DELETE_FAILURE on error.
  */
@@ -776,68 +974,19 @@ NtfsDeleteFile(EFI_NTFS_FILE* File)
 }
 
 /*
- * Read from an open file into a data buffer
- */
-EFI_STATUS
-NtfsReadFile(EFI_NTFS_FILE* File, VOID* Data, UINTN* Len)
-{
-	ntfs_attr* na = NULL;
-	s64 max_read, size = *Len;
-
-	*Len = 0;
-
-	na = ntfs_attr_open(File->NtfsInode, AT_DATA, AT_UNNAMED, 0);
-	if (!na) {
-		PrintError(L"%a failed: %a\n", __FUNCTION__, strerror(errno));
-		return ErrnoToEfiStatus();
-	}
-
-	max_read = na->data_size;
-	if (File->Offset + size > max_read) {
-		if (max_read < File->Offset) {
-			*Len = 0;
-			ntfs_attr_close(na);
-			return EFI_SUCCESS;
-		}
-		size = max_read - File->Offset;
-	}
-
-	while (size > 0) {
-		s64 ret = ntfs_attr_pread(na, File->Offset, size, &((UINT8*)Data)[*Len]);
-		if (ret != size)
-			PrintError(L"%a: Error reading inode %lld at offset %lld: %lld <> %lld",
-				((ntfs_inode*)File->NtfsInode)->mft_no,
-				File->Offset, *Len, ret);
-		if (ret <= 0 || ret > size) {
-			ntfs_attr_close(na);
-			if (ret >= 0)
-				errno = EIO;
-			PrintError(L"%a failed: %a\n", __FUNCTION__, strerror(errno));
-			return ErrnoToEfiStatus();
-		}
-		size -= ret;
-		File->Offset += ret;
-		*Len += ret;
-	}
-
-	ntfs_attr_close(na);
-
-	if (!NtfsIsVolumeReadOnly(File->FileSystem->NtfsVolume))
-		ntfs_inode_update_times(File->NtfsInode, NTFS_UPDATE_MCTIME);
-
-	return EFI_SUCCESS;
-}
-
-/*
  * Write from a data buffer into an open file
  */
 EFI_STATUS
 NtfsWriteFile(EFI_NTFS_FILE* File, VOID* Data, UINTN* Len)
 {
+	ntfs_inode* ni = File->NtfsInode;
 	ntfs_attr* na = NULL;
 	s64 size = *Len;
 
 	*Len = 0;
+
+	if (ni->flags & FILE_ATTR_READONLY)
+		return EFI_WRITE_PROTECTED;
 
 	na = ntfs_attr_open(File->NtfsInode, AT_DATA, AT_UNNAMED, 0);
 	if (!na) {
@@ -867,90 +1016,8 @@ NtfsWriteFile(EFI_NTFS_FILE* File, VOID* Data, UINTN* Len)
 }
 
 /*
- * Return the current size occupied by a file
- */
-UINT64
-NtfsGetFileSize(EFI_NTFS_FILE* File)
-{
-	if (File->NtfsInode == NULL) 
-		return 0;
-	return ((ntfs_inode*)File->NtfsInode)->data_size;
-}
-
-/*
- * Return the current file offset
- */
-UINT64
-NtfsGetFileOffset(EFI_NTFS_FILE* File)
-{
-	return File->Offset;
-}
-
-/*
- * Set the current file offset
- */
-VOID
-NtfsSetFileOffset(EFI_NTFS_FILE* File, UINT64 Offset)
-{
-	File->Offset = Offset;
-}
-
-/*
- * Fill an EFI_FILE_INFO struct with data from the NTFS inode.
- * This function takes either a File or an MREF (with the MREF
- * being used if it's non-zero).
- */
-EFI_STATUS
-NtfsGetFileInfo(EFI_NTFS_FILE* File, EFI_FILE_INFO* Info, CONST UINT64 MRef, BOOLEAN IsDir)
-{
-	BOOLEAN NeedClose = FALSE;
-	EFI_NTFS_FILE* Existing = NULL;
-	ntfs_inode* ni = File->NtfsInode;
-
-	/*
-	 * If Non-zero MREF, we are listing a dir, in which case we need
-	 * to open (and later close) the inode.
-	 */
-	if (MRef != 0) {
-		Existing = NtfsLookupInum(File, MRef);
-		if (Existing != NULL) {
-			ni = Existing->NtfsInode;
-		} else {
-			ni = ntfs_inode_open(File->FileSystem->NtfsVolume, MRef);
-			NeedClose = TRUE;
-		}
-	} else
-		PrintExtra(L"NtfsGetInfo for inode: %lld\n", ni->mft_no);
-
-	if (ni == NULL)
-		return EFI_NOT_FOUND;
-
-	Info->FileSize = ni->data_size;
-	Info->PhysicalSize = ni->allocated_size;
-	UnixTimeToEfiTime(NTFS_TO_UNIX_TIME(ni->creation_time), &Info->CreateTime);
-	UnixTimeToEfiTime(NTFS_TO_UNIX_TIME(ni->last_access_time), &Info->LastAccessTime);
-	UnixTimeToEfiTime(NTFS_TO_UNIX_TIME(ni->last_data_change_time), &Info->ModificationTime);
-
-	Info->Attribute = 0;
-	if (IsDir)
-		Info->Attribute |= EFI_FILE_DIRECTORY;
-	if (ni->flags & FILE_ATTR_READONLY | NtfsIsVolumeReadOnly(File->FileSystem->NtfsVolume))
-		Info->Attribute |= EFI_FILE_READ_ONLY;
-	if (ni->flags & FILE_ATTR_HIDDEN)
-		Info->Attribute |= EFI_FILE_HIDDEN;
-	if (ni->flags & FILE_ATTR_SYSTEM)
-		Info->Attribute |= EFI_FILE_SYSTEM;
-	if (ni->flags & FILE_ATTR_ARCHIVE)
-		Info->Attribute |= EFI_FILE_ARCHIVE;
-
-	if (NeedClose)
-		ntfs_inode_close(ni);
-
-	return EFI_SUCCESS;
-}
-
-/*
- * Move/Rename a file or directory
+ * Move/Rename a file or directory.
+ * This call frees the NewPath parameter.
  */
 static EFI_STATUS
 NtfsMoveFile(EFI_NTFS_FILE* File, CHAR16* NewPath)
@@ -1186,35 +1253,6 @@ NtfsSetFileInfo(EFI_NTFS_FILE* File, EFI_FILE_INFO* Info)
 }
 
 /*
- * Read the content of an existing directory
- */
-EFI_STATUS
-NtfsReadDirectory(EFI_NTFS_FILE* File, NTFS_DIRHOOK Hook, VOID* HookData)
-{
-	s64 pos = 0;
-
-	if (ntfs_readdir(File->NtfsInode, &pos, HookData, Hook)) {
-		PrintError(L"%a failed: %a\n", __FUNCTION__, strerror(errno));
-		return ErrnoToEfiStatus();
-	}
-
-	return EFI_SUCCESS;
-}
-
-/*
- * Change the volume label
- */
-EFI_STATUS
-NtfsRenameVolume(VOID* NtfsVolume, CONST CHAR16* Label, CONST INTN Len)
-{
-	if (ntfs_volume_rename(NtfsVolume, Label, (int)Len) < 0) {
-		PrintError(L"%a failed: %a\n", __FUNCTION__, strerror(errno));
-		return ErrnoToEfiStatus();
-	}
-	return EFI_SUCCESS;
-}
-
-/*
  * Flush the current file
  */
 EFI_STATUS
@@ -1231,7 +1269,7 @@ NtfsFlushFile(EFI_NTFS_FILE* File)
 		return EFI_SUCCESS;
 
 	/*
-	 * Same story as with NtfsCloseFile, with the parent 
+	 * Same story as with NtfsCloseFile, with the parent
 	 * inode needing to be closed to be able to issue sync()
 	 */
 	Parent = NtfsLookupParent(File);
@@ -1252,3 +1290,20 @@ NtfsFlushFile(EFI_NTFS_FILE* File)
 	}
 	return Status;
 }
+
+/*
+ * Change the volume label
+ */
+EFI_STATUS
+NtfsRenameVolume(VOID* NtfsVolume, CONST CHAR16* Label, CONST INTN Len)
+{
+	if (NtfsIsVolumeReadOnly(NtfsVolume))
+		return EFI_WRITE_PROTECTED;
+	if (ntfs_volume_rename(NtfsVolume, Label, (int)Len) < 0) {
+		PrintError(L"%a failed: %a\n", __FUNCTION__, strerror(errno));
+		return ErrnoToEfiStatus();
+	}
+	return EFI_SUCCESS;
+}
+
+#endif /* FORCE_READONLY */
