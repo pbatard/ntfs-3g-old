@@ -104,7 +104,7 @@ FileOpen(EFI_FILE_HANDLE This, EFI_FILE_HANDLE* New,
 
 	/* Convert the delimiters if needed */
 	for (i = SafeStrLen(Path) - 1; i >= Len; i--) {
-		if (Path[i] == L'\\')
+		if (Path[i] == DOS_PATH_CHAR)
 			Path[i] = PATH_CHAR;
 	}
 
@@ -271,22 +271,8 @@ static INT32 DirHook(VOID* Data, CONST CHAR16* Name,
 	DIR_DATA* HookData = (DIR_DATA*)Data;
 	UINTN Len, MaxLen;
 
-	/*
-	 * Don't process any inodes below 11:
-	 * 0:  $MFT
-	 * 1:  $MFTMirr
-	 * 2:  $LogFile
-	 * 3:  $Volume
-	 * 4:  $AttrDef
-	 * 5:  <ROOT>
-	 * 6:  $Bitmap
-	 * 7:  $Boot
-	 * 8:  $BadClus
-	 * 9:  $Secure
-	 * 10: $UpCase
-	 * 11: $Extend
-	 */
-	if (GetInodeNumber(MRef) <= 11)
+	/* Don't list any system files except root */
+	if (GetInodeNumber(MRef) < FILE_FIRST_USER && GetInodeNumber(MRef) != FILE_ROOT)
 		return 0;
 
 	/* Eliminate '.' or '..' */

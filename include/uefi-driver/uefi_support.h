@@ -66,7 +66,11 @@
 #define PATH_CHAR               L'/'
 #endif
 
-#define IS_PATH_DELIMITER(x)    (x == PATH_CHAR || x == L'\\')
+#ifndef DOS_PATH_CHAR
+#define DOS_PATH_CHAR           L'\\'
+#endif
+
+#define IS_PATH_DELIMITER(x)    ((x) == PATH_CHAR || (x) == DOS_PATH_CHAR)
 
 #define _WIDEN(s)               L ## s
 #define WIDEN(s)                _WIDEN(s)

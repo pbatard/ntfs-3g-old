@@ -25,6 +25,10 @@
 #define TIME_ACCESSED       1
 #define TIME_MODIFIED       2
 
+/* Same as 'FILE_root' and 'FILE_first_user' from layout.h's NTFS_SYSTEM_FILES */
+#define FILE_ROOT           5
+#define FILE_FIRST_USER     16
+
 /* Similar to the MREF() macro from libntfs-3g */
 #define GetInodeNumber(x)   ((UINT64)((x) & 0XFFFFFFFFFFFFULL))
 

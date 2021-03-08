@@ -134,6 +134,9 @@ static EFI_STATUS ErrnoToEfiStatus(VOID)
 	}
 }
 
+/*
+ * Wrapper over ntfs_ucstombs() for UTF8 conversion
+ */
 static inline int _to_utf8(CONST CHAR16* Src, char** dst, char* function)
 {
 	/* ntfs_ucstombs() can be used to convert to UTF-8 */
@@ -146,7 +149,9 @@ static inline int _to_utf8(CONST CHAR16* Src, char** dst, char* function)
 
 #define to_utf8(Src, dst) _to_utf8(Src, dst, __FUNCTION__)
 
-/* Compute an EFI_TIME representation of an ntfs_time field */
+/*
+ * Compute an EFI_TIME representation of an ntfs_time field
+ */
 VOID
 NtfsGetEfiTime(EFI_NTFS_FILE* File, EFI_TIME* Time, INTN Type)
 {
@@ -203,7 +208,7 @@ BOOLEAN
 NtfsIsVolumeReadOnly(VOID* NtfsVolume)
 {
 #ifdef FORCE_READONLY
-	/* NVolReadOnly() should apply, but just in case... */
+	/* NVolReadOnly() should apply, but just to be safe... */
 	return TRUE;
 #else
 	ntfs_volume* vol = (ntfs_volume*)NtfsVolume;
@@ -219,7 +224,7 @@ NtfsIsVolumeReadOnly(VOID* NtfsVolume)
  * things. Which means that, if we just hook these into ntfs_open_inode()
  * calls, all kind of bad things related to caching are supposed to happen.
  * Ergo, we need to keep a list of all the files we already have an inode
- * for, and perform look ups to prevent double inode open.
+ * for, and perform look up to prevent double inode open.
  */
 
 /* A file lookup entry */
@@ -233,6 +238,9 @@ typedef struct {
  * Look for an existing file instance in our list, either
  * by matching a File->Path (if Inum is 0) or the inode
  * number specified in Inum.
+ * IgnoreSelf can be used if you want to prevent the file
+ * passed as parameter from matching (in case you are using
+ * it with an altered path for instance).
  * Returns a pointer to the file instance when found, NULL
  * if not found.
  */
@@ -264,8 +272,14 @@ NtfsLookup(EFI_NTFS_FILE* File, UINT64 Inum, BOOLEAN IgnoreSelf)
 	return NULL;
 }
 
-/* Look for a parent file instance */
-static EFI_NTFS_FILE*
+/* Shorthands for the above */
+#define NtfsLookupPath(File, IgnoreSelf) NtfsLookup(File, 0, IgnoreSelf)
+#define NtfsLookupInum(File, Inum) NtfsLookup(File, Inum, FALSE)
+
+/*
+ * Convenience call to look for an open parent file instance
+ */
+static __inline EFI_NTFS_FILE*
 NtfsLookupParent(EFI_NTFS_FILE* File)
 {
 	EFI_NTFS_FILE* Parent;
@@ -273,12 +287,14 @@ NtfsLookupParent(EFI_NTFS_FILE* File)
 	/* BaseName always points into a non empty Path */
 	FS_ASSERT(File->BaseName[-1] == PATH_CHAR);
 	File->BaseName[-1] = 0;
-	Parent = NtfsLookup(File, 0, TRUE);
+	Parent = NtfsLookupPath(File, TRUE);
 	File->BaseName[-1] = PATH_CHAR;
 	return Parent;
 }
 
-/* Add a new file instance to the lookup list */
+/*
+ * Add a new file instance to the lookup list
+ */
 static VOID
 NtfsLookupAdd(EFI_NTFS_FILE* File)
 {
@@ -291,7 +307,9 @@ NtfsLookupAdd(EFI_NTFS_FILE* File)
 	}
 }
 
-/* Remove an existing file instance from the lookup list */
+/*
+ * Remove an existing file instance from the lookup list
+ */
 static VOID
 NtfsLookupRem(EFI_NTFS_FILE* File)
 {
@@ -309,7 +327,9 @@ NtfsLookupRem(EFI_NTFS_FILE* File)
 	}
 }
 
-/* Clear the lookup list and free all allocated resources */
+/*
+ * Clear the lookup list and free all allocated resources
+ */
 static VOID
 NtfsLookupFree(LIST_ENTRY* List)
 {
@@ -323,6 +343,9 @@ NtfsLookupFree(LIST_ENTRY* List)
 	}
 }
 
+/*
+ * Mount an NTFS volume an initilize the related attributes
+ */
 EFI_STATUS
 NtfsMountVolume(EFI_FS* FileSystem)
 {
@@ -364,6 +387,9 @@ NtfsMountVolume(EFI_FS* FileSystem)
 	return EFI_SUCCESS;
 }
 
+/*
+ * Unmount an NTFS volume and free allocated resources
+ */
 EFI_STATUS
 NtfsUnmountVolume(EFI_FS* FileSystem)
 {
@@ -381,6 +407,9 @@ NtfsUnmountVolume(EFI_FS* FileSystem)
 	return EFI_SUCCESS;
 }
 
+/*
+ * Returns the amount of free space on the volume
+ */
 UINT64
 NtfsGetVolumeFreeSpace(VOID* NtfsVolume)
 {
@@ -391,6 +420,9 @@ NtfsGetVolumeFreeSpace(VOID* NtfsVolume)
 	return vol->free_clusters * vol->cluster_size;
 }
 
+/*
+ * Allocate a new EFI_NTFS_FILE data structure
+ */
 EFI_STATUS
 NtfsAllocateFile(EFI_NTFS_FILE** File, EFI_FS* FileSystem)
 {
@@ -422,6 +454,9 @@ NtfsAllocateFile(EFI_NTFS_FILE** File, EFI_FS* FileSystem)
 	return EFI_SUCCESS;
 }
 
+/*
+ * Free an allocated EFI_NTFS_FILE data structure
+ */
 VOID
 NtfsFreeFile(EFI_NTFS_FILE* File)
 {
@@ -435,6 +470,8 @@ NtfsFreeFile(EFI_NTFS_FILE* File)
 }
 
 /*
+ * Wrapper for ntfs_pathname_to_inode()
+ *
  * Unlike what FUSE does, we really can't use ntfs_pathname_to_inode()
  * with a NULL dir_ni in UEFI because we always run into a situation
  * where inodes between the inode we want and root are still open and
@@ -446,9 +483,9 @@ NtfsFreeFile(EFI_NTFS_FILE* File)
  * down our path until we either end up with a directory instance that
  * we already have open, or root.
  *
- * It should also be noted that there is no guarantee that an open
- * root instance exists when we are performing this search, as the
- * UEFI Shell is wont to close root before it closes other files.
+ * It should be pointed out that there is no guarantee that an open
+ * root instance exists while performing this search, as the UEFI
+ * Shell is wont to close root before it closes other files.
  */
 static ntfs_inode*
 NtfsOpenInodeFromPath(EFI_FS* FileSystem, CONST CHAR16* Path)
@@ -479,7 +516,7 @@ NtfsOpenInodeFromPath(EFI_FS* FileSystem, CONST CHAR16* Path)
 	while (Parent == NULL && Len > 0) {
 		while (TmpPath[--Len] != PATH_CHAR);
 		TmpPath[Len] = 0;
-		Parent = NtfsLookup(&File, 0, FALSE);
+		Parent = NtfsLookupPath(&File, FALSE);
 		TmpPath[Len] = PATH_CHAR;
 	}
 
@@ -504,7 +541,7 @@ NtfsOpenFile(EFI_NTFS_FILE** FilePointer)
 	EFI_NTFS_FILE* File;
 
 	/* See if we already have a file instance open. */
-	File = NtfsLookup(*FilePointer, 0, FALSE);
+	File = NtfsLookupPath(*FilePointer, FALSE);
 
 	if (File != NULL) {
 		/* Existing file instance found => Use that one */
@@ -540,7 +577,7 @@ NtfsCreateFile(EFI_NTFS_FILE** FilePointer)
 	int sz;
 
 	/* If an existing open file instance is found, use that one */
-	File = NtfsLookup(*FilePointer, 0, FALSE);
+	File = NtfsLookupPath(*FilePointer, FALSE);
 	if (File != NULL) {
 		/* Entries must be of the same type */
 		if (File->IsDir != (*FilePointer)->IsDir)
@@ -552,6 +589,12 @@ NtfsCreateFile(EFI_NTFS_FILE** FilePointer)
 
 	/* No open instance for this inode => Open the parent inode */
 	File = *FilePointer;
+
+	/* Validate BaseName */
+	if (ntfs_forbidden_names(File->FileSystem->NtfsVolume,
+		File->BaseName, SafeStrLen(File->BaseName), TRUE)) {
+		return EFI_INVALID_PARAMETER;
+	}
 
 	Parent = NtfsLookupParent(File);
 
@@ -592,10 +635,14 @@ NtfsCreateFile(EFI_NTFS_FILE** FilePointer)
 			Status = ErrnoToEfiStatus();
 			goto out;
 		}
+		/* Windows and FUSE set this flag by default */
+		if (!File->IsDir)
+			ni->flags |= FILE_ATTR_ARCHIVE;
 	}
 
 	/* Update cache lookup record */
 	ntfs_inode_update_mbsname(dir_ni, basename, ni->mft_no);
+	ntfs_inode_update_times(ni, NTFS_UPDATE_MCTIME);
 
 	File->NtfsInode = ni;
 	NtfsLookupAdd(File);
@@ -613,6 +660,9 @@ out:
 	return Status;
 }
 
+/*
+ * Close an open file
+ */
 VOID
 NtfsCloseFile(EFI_NTFS_FILE* File)
 {
@@ -649,6 +699,8 @@ NtfsCloseFile(EFI_NTFS_FILE* File)
 }
 
 /*
+ * Delete a file or directory from the volume
+ * 
  * Like FileDelete(), this call should only
  * return EFI_WARN_DELETE_FAILURE on error.
  */
@@ -723,6 +775,9 @@ NtfsDeleteFile(EFI_NTFS_FILE* File)
 	return EFI_SUCCESS;
 }
 
+/*
+ * Read from an open file into a data buffer
+ */
 EFI_STATUS
 NtfsReadFile(EFI_NTFS_FILE* File, VOID* Data, UINTN* Len)
 {
@@ -766,9 +821,16 @@ NtfsReadFile(EFI_NTFS_FILE* File, VOID* Data, UINTN* Len)
 	}
 
 	ntfs_attr_close(na);
+
+	if (!NtfsIsVolumeReadOnly(File->FileSystem->NtfsVolume))
+		ntfs_inode_update_times(File->NtfsInode, NTFS_UPDATE_MCTIME);
+
 	return EFI_SUCCESS;
 }
 
+/*
+ * Write from a data buffer into an open file
+ */
 EFI_STATUS
 NtfsWriteFile(EFI_NTFS_FILE* File, VOID* Data, UINTN* Len)
 {
@@ -798,9 +860,15 @@ NtfsWriteFile(EFI_NTFS_FILE* File, VOID* Data, UINTN* Len)
 	}
 
 	ntfs_attr_close(na);
+
+	ntfs_inode_update_times(File->NtfsInode, NTFS_UPDATE_MCTIME);
+
 	return EFI_SUCCESS;
 }
 
+/*
+ * Return the current size occupied by a file
+ */
 UINT64
 NtfsGetFileSize(EFI_NTFS_FILE* File)
 {
@@ -809,12 +877,18 @@ NtfsGetFileSize(EFI_NTFS_FILE* File)
 	return ((ntfs_inode*)File->NtfsInode)->data_size;
 }
 
+/*
+ * Return the current file offset
+ */
 UINT64
 NtfsGetFileOffset(EFI_NTFS_FILE* File)
 {
 	return File->Offset;
 }
 
+/*
+ * Set the current file offset
+ */
 VOID
 NtfsSetFileOffset(EFI_NTFS_FILE* File, UINT64 Offset)
 {
@@ -838,7 +912,7 @@ NtfsGetFileInfo(EFI_NTFS_FILE* File, EFI_FILE_INFO* Info, CONST UINT64 MRef, BOO
 	 * to open (and later close) the inode.
 	 */
 	if (MRef != 0) {
-		Existing = NtfsLookup(File, MRef, FALSE);
+		Existing = NtfsLookupInum(File, MRef);
 		if (Existing != NULL) {
 			ni = Existing->NtfsInode;
 		} else {
@@ -875,14 +949,17 @@ NtfsGetFileInfo(EFI_NTFS_FILE* File, EFI_FILE_INFO* Info, CONST UINT64 MRef, BOO
 	return EFI_SUCCESS;
 }
 
+/*
+ * Move/Rename a file or directory
+ */
 static EFI_STATUS
 NtfsMoveFile(EFI_NTFS_FILE* File, CHAR16* NewPath)
 {
-	EFI_STATUS Status = EFI_UNSUPPORTED;
+	EFI_STATUS Status = EFI_ACCESS_DENIED;
 	EFI_NTFS_FILE *Parent = NULL, *NewParent = NULL;
 	CHAR16 *OldPath, *OldBaseName;
 	BOOLEAN SameDir;
-	ntfs_inode *ni, *parent_ni, *newparent_ni = NULL;
+	ntfs_inode *ni, *parent_ni = NULL, *newparent_ni = NULL;
 	char* basename = NULL;
 	INTN Len = SafeStrLen(NewPath);
 	u64 parent_inum, newparent_inum;
@@ -922,9 +999,16 @@ NtfsMoveFile(EFI_NTFS_FILE* File, CHAR16* NewPath)
 	File->Path = NewPath;
 	File->BaseName = &NewPath[Len + 1];
 
+	/* Validate the new BaseName */
+	if (ntfs_forbidden_names(File->FileSystem->NtfsVolume,
+		File->BaseName, SafeStrLen(File->BaseName), TRUE)) {
+		Status = EFI_INVALID_PARAMETER;
+		goto out;
+	}
+
 	if (!SameDir) {
 		/* NewPath points to dirname => use that */
-		NewParent = NtfsLookup(File, 0, TRUE);
+		NewParent = NtfsLookupPath(File, TRUE);
 		if (NewParent != NULL)
 			newparent_ni = NewParent->NtfsInode;
 		else {
@@ -989,6 +1073,11 @@ NtfsMoveFile(EFI_NTFS_FILE* File, CHAR16* NewPath)
 	}
 	File->NtfsInode = ni;
 	ntfs_inode_update_mbsname(SameDir ? parent_ni : newparent_ni, basename, ni->mft_no);
+	if (!SameDir)
+		ntfs_inode_update_times(newparent_ni, NTFS_UPDATE_MCTIME);
+	ntfs_inode_update_times(parent_ni, NTFS_UPDATE_MCTIME);
+	ntfs_inode_update_times(ni, NTFS_UPDATE_CTIME);
+
 	Status = EFI_SUCCESS;
 
 out:
@@ -1024,13 +1113,13 @@ NtfsSetFileInfo(EFI_NTFS_FILE* File, EFI_FILE_INFO* Info)
 	PrintExtra(L"NtfsSetInfo for inode: %lld\n", ni->mft_no);
 
 	/* If we get an absolute path, we might be moving the file */
-	if ((Info->FileName[0] == PATH_CHAR) || (Info->FileName[0] == L'\\')) {
+	if (IS_PATH_DELIMITER(Info->FileName[0])) {
 		/* Need to convert the path separators */
 		Path = StrDup(Info->FileName);
 		if (Path == NULL)
 			return EFI_OUT_OF_RESOURCES;
 		for (c = Path; *c; c++) {
-			if (*c == L'\\')
+			if (*c == DOS_PATH_CHAR)
 				*c = PATH_CHAR;
 		}
 		if (StrCmp(Path, File->Path)) {
@@ -1038,10 +1127,12 @@ NtfsSetFileInfo(EFI_NTFS_FILE* File, EFI_FILE_INFO* Info)
 			if (EFI_ERROR(Status))
 				return Status;
 		}
-		/* TODO: We Should update modification times like FUSE does */
 	}
 
-	if (Info->FileSize != ni->data_size) {
+	/* NtfsMoveFile() may have altered File->NtfsInode */
+	ni = File->NtfsInode;
+
+	if (!IS_DIR(ni) && Info->FileSize != ni->data_size) {
 		na = ntfs_attr_open(ni, AT_DATA, AT_UNNAMED, 0);
 		if (!na) {
 			PrintError(L"%a ntfs_attr_open failed: %a\n", __FUNCTION__, strerror(errno));
@@ -1073,6 +1164,9 @@ NtfsSetFileInfo(EFI_NTFS_FILE* File, EFI_FILE_INFO* Info)
 	return EFI_SUCCESS;
 }
 
+/*
+ * Read the content of an existing directory
+ */
 EFI_STATUS
 NtfsReadDirectory(EFI_NTFS_FILE* File, NTFS_DIRHOOK Hook, VOID* HookData)
 {
@@ -1086,6 +1180,9 @@ NtfsReadDirectory(EFI_NTFS_FILE* File, NTFS_DIRHOOK Hook, VOID* HookData)
 	return EFI_SUCCESS;
 }
 
+/*
+ * Change the volume label
+ */
 EFI_STATUS
 NtfsRenameVolume(VOID* NtfsVolume, CONST CHAR16* Label, CONST INTN Len)
 {
@@ -1096,6 +1193,9 @@ NtfsRenameVolume(VOID* NtfsVolume, CONST CHAR16* Label, CONST INTN Len)
 	return EFI_SUCCESS;
 }
 
+/*
+ * Flush the current file
+ */
 EFI_STATUS
 NtfsFlushFile(EFI_NTFS_FILE* File)
 {
