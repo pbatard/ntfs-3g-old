@@ -956,12 +956,12 @@ static EFI_STATUS
 NtfsMoveFile(EFI_NTFS_FILE* File, CHAR16* NewPath)
 {
 	EFI_STATUS Status = EFI_ACCESS_DENIED;
-	EFI_NTFS_FILE *Parent = NULL, *NewParent = NULL;
+	EFI_NTFS_FILE *Parent = NULL, *NewParent = NULL, TmpFile = { 0 };
 	CHAR16 *OldPath, *OldBaseName;
-	BOOLEAN SameDir;
+	BOOLEAN SameDir = FALSE, ParentIsChildOfNewParent = FALSE;
 	ntfs_inode *ni, *parent_ni = NULL, *newparent_ni = NULL;
 	char* basename = NULL;
-	INTN Len = SafeStrLen(NewPath);
+	INTN TmpLen, Len = SafeStrLen(NewPath);
 	u64 parent_inum, newparent_inum;
 
 	/* Nothing to do if new and old paths are the same */
@@ -971,9 +971,6 @@ NtfsMoveFile(EFI_NTFS_FILE* File, CHAR16* NewPath)
 	/* Don't alter a file that is dirty */
 	if (IS_DIRTY(File->NtfsInode))
 		return EFI_ACCESS_DENIED;
-
-	OldPath = File->Path;
-	OldBaseName = File->BaseName;
 
 	FS_ASSERT(NewPath[0] == PATH_CHAR);
 	while (NewPath[--Len] != PATH_CHAR);
@@ -995,20 +992,17 @@ NtfsMoveFile(EFI_NTFS_FILE* File, CHAR16* NewPath)
 	}
 	parent_inum = parent_ni->mft_no;
 
-	/* Set the new FileName and BaseName */
-	File->Path = NewPath;
-	File->BaseName = &NewPath[Len + 1];
-
 	/* Validate the new BaseName */
 	if (ntfs_forbidden_names(File->FileSystem->NtfsVolume,
-		File->BaseName, SafeStrLen(File->BaseName), TRUE)) {
+		&NewPath[Len + 1], SafeStrLen(&NewPath[Len + 1]), TRUE)) {
 		Status = EFI_INVALID_PARAMETER;
 		goto out;
 	}
 
 	if (!SameDir) {
-		/* NewPath points to dirname => use that */
-		NewParent = NtfsLookupPath(File, TRUE);
+		TmpFile.FileSystem = File->FileSystem;
+		TmpFile.Path = NewPath;
+		NewParent = NtfsLookupPath(&TmpFile, TRUE);
 		if (NewParent != NULL)
 			newparent_ni = NewParent->NtfsInode;
 		else {
@@ -1018,18 +1012,30 @@ NtfsMoveFile(EFI_NTFS_FILE* File, CHAR16* NewPath)
 			 * could therefore produce a double inode open).
 			 */
 			ntfs_inode_close(parent_ni);
-			newparent_ni = NtfsOpenInodeFromPath(File->FileSystem, File->Path);
+			newparent_ni = NtfsOpenInodeFromPath(File->FileSystem, NewPath);
 			parent_ni = ntfs_inode_open(File->FileSystem->NtfsVolume, parent_inum);
 		}
-		File->BaseName[-1] = PATH_CHAR;
 		if (newparent_ni == NULL) {
-			/* Restore the old names */
-			File->Path = OldPath;
-			File->BaseName = OldBaseName;
 			Status = ErrnoToEfiStatus();
 			goto out;
 		}
 		newparent_inum = newparent_ni->mft_no;
+
+		/*
+		 * Here, we have to find if 'newparent' is the parent of
+		 * 'parent' as this decides the order in which we must
+		 * close the directories to avoid a double inode open.
+		 */
+		File->BaseName[-1] = 0;
+		TmpLen = StrLen(File->Path);
+		if (TmpLen > 0) {
+			FS_ASSERT(File->Path[0] == PATH_CHAR);
+			while (File->Path[--TmpLen] != PATH_CHAR);
+			File->Path[TmpLen] = 0;
+			ParentIsChildOfNewParent = (StrCmp(File->Path, NewPath) == 0);
+			File->Path[TmpLen] = PATH_CHAR;
+		}
+		File->BaseName[-1] = PATH_CHAR;
 	}
 
 	/* Re-complete the target path */
@@ -1039,11 +1045,14 @@ NtfsMoveFile(EFI_NTFS_FILE* File, CHAR16* NewPath)
 	ni = File->NtfsInode;
 	if (ntfs_link(ni, SameDir ? parent_ni : newparent_ni, File->BaseName, StrLen(File->BaseName))) {
 		Status = ErrnoToEfiStatus();
-		File->Path = OldPath;
-		File->BaseName = OldBaseName;
 		goto out;
 	}
 
+	/* Set the new FileName and BaseName */
+	OldPath = File->Path;
+	OldBaseName = File->BaseName;
+	File->Path = NewPath;
+	File->BaseName = &NewPath[Len + 1];
 	/* So that we free the right string on exit */
 	NewPath = OldPath;
 
@@ -1082,12 +1091,23 @@ NtfsMoveFile(EFI_NTFS_FILE* File, CHAR16* NewPath)
 
 out:
 	free(basename);
-	/* We must either close or update the parent inodes */
+	/*
+	 * Again, because of ntfs-3g's "no inode should be re-opened"
+	 * policy, we must be very careful with the order in which we
+	 * close the parents, in case one is the direct child of the
+	 * other. Else the internal sync will result in a double open.
+	 */
+	if (ParentIsChildOfNewParent) {
+		if (NewParent == NULL)
+			ntfs_inode_close(newparent_ni);
+		else
+			NewParent->NtfsInode = newparent_ni;
+	}
 	if (Parent == NULL)
 		ntfs_inode_close(parent_ni);
 	else
 		Parent->NtfsInode = parent_ni;
-	if (!SameDir) {
+	if (!SameDir & !ParentIsChildOfNewParent) {
 		if (NewParent == NULL)
 			ntfs_inode_close(newparent_ni);
 		else
@@ -1122,6 +1142,7 @@ NtfsSetFileInfo(EFI_NTFS_FILE* File, EFI_FILE_INFO* Info)
 			if (*c == DOS_PATH_CHAR)
 				*c = PATH_CHAR;
 		}
+		CleanPath(Path);
 		if (StrCmp(Path, File->Path)) {
 			Status = NtfsMoveFile(File, Path);
 			if (EFI_ERROR(Status))
