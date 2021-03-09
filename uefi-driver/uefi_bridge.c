@@ -38,6 +38,10 @@
 #define IS_DIR(ni)      (((ntfs_inode*)(ni))->mrec->flags & MFT_RECORD_IS_DIRECTORY)
 #define IS_DIRTY(ni)    (NInoDirty((ntfs_inode*)(ni)) || NInoAttrListDirty((ntfs_inode*)(ni)))
 
+#ifndef ENOMEDIUM
+#define ENOMEDIUM 159
+#endif
+
 /*
  * Convert an errno to an EFI_STATUS code. Adapted from:
  * https://github.com/ipxe/ipxe/blob/master/src/include/ipxe/errno/efi.h
@@ -50,7 +54,6 @@ static EFI_STATUS ErrnoToEfiStatus(VOID)
 	case ECANCELED:
 		return EFI_ABORTED;
 	case EACCES:
-	case EPERM:
 	case ETXTBSY:
 		return EFI_ACCESS_DENIED;
 	case EADDRINUSE:
@@ -119,6 +122,8 @@ static EFI_STATUS ErrnoToEfiStatus(VOID)
 	case ENOTSUP:
 	case EOPNOTSUPP:
 		return EFI_UNSUPPORTED;
+	case ENOMEDIUM:
+		return EFI_NO_MEDIA;
 	case ELOOP:
 	case ENOTDIR:
 	case ENOTEMPTY:
@@ -129,6 +134,8 @@ static EFI_STATUS ErrnoToEfiStatus(VOID)
 	case EEXIST:
 	case EROFS:
 		return EFI_WRITE_PROTECTED;
+	case EPERM:
+		return EFI_SECURITY_VIOLATION;
 	default:
 		return EFI_NO_MAPPING;
 	}
@@ -664,24 +671,6 @@ NtfsGetFileSize(EFI_NTFS_FILE* File)
 	if (File->NtfsInode == NULL)
 		return 0;
 	return ((ntfs_inode*)File->NtfsInode)->data_size;
-}
-
-/*
- * Return the current file offset
- */
-UINT64
-NtfsGetFileOffset(EFI_NTFS_FILE* File)
-{
-	return File->Offset;
-}
-
-/*
- * Set the current file offset
- */
-VOID
-NtfsSetFileOffset(EFI_NTFS_FILE* File, UINT64 Offset)
-{
-	File->Offset = Offset;
 }
 
 /*

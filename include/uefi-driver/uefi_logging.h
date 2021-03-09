@@ -47,8 +47,8 @@ extern UINTN LogLevel;
 
 /* Print an error message along with a human readable EFI status code */
 #define PrintStatusError(Status, Format, ...) \
-	if (LogLevel >= FS_LOGLEVEL_ERROR) { \
-		Print(Format, ##__VA_ARGS__); PrintStatus(Status); }
+	do { if (LogLevel >= FS_LOGLEVEL_ERROR) { \
+		 Print(Format, ##__VA_ARGS__); PrintStatus(Status); } } while(0)
 
 typedef UINTN(EFIAPI* Print_t)  (IN CONST CHAR16* fmt, ...);
 extern Print_t PrintError;

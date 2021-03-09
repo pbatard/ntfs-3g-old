@@ -18,6 +18,8 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <stdint.h>
+
 #include "uefi_driver.h"
 #include "uefi_bridge.h"
 #include "uefi_logging.h"
@@ -430,15 +432,18 @@ FileSetPosition(EFI_FILE_HANDLE This, UINT64 Position)
 	PrintInfo(L"SetPosition(" PERCENT_P L"|'%s', %lld) %s\n", (UINTN) This,
 		File->Path, Position, (File->IsDir) ? L"<DIR>" : L"");
 
-	/* If this is a directory, reset the Index to the start */
 	if (File->IsDir) {
+		/* Per specs: "The only position that may be set is zero" */
 		if (Position != 0)
-			return EFI_INVALID_PARAMETER;
+			return EFI_UNSUPPORTED;
 		File->DirIndex = 0;
 		return EFI_SUCCESS;
 	}
 
 	FileSize = NtfsGetFileSize(File);
+	/* Per specs */
+	if (Position == UINT64_MAX)
+		Position = FileSize;
 	if (Position > FileSize) {
 		PrintError(L"'%s': Cannot seek to #%llx of %llx\n",
 				File->Path, Position, FileSize);
@@ -446,7 +451,7 @@ FileSetPosition(EFI_FILE_HANDLE This, UINT64 Position)
 	}
 
 	/* Set position */
-	NtfsSetFileOffset(File, Position);
+	File->Offset = Position;
 	PrintDebug(L"'%s': Position set to %llx\n",
 			File->Path, Position);
 
@@ -467,10 +472,11 @@ FileGetPosition(EFI_FILE_HANDLE This, UINT64* Position)
 
 	PrintInfo(L"GetPosition(" PERCENT_P L"|'%s', %lld)\n", (UINTN) This, File->Path);
 
+	/* Per UEFI specs */
 	if (File->IsDir)
-		*Position = File->DirIndex;
-	else
-		*Position = NtfsGetFileOffset(File);
+		return EFI_UNSUPPORTED;
+
+	*Position = File->Offset;
 	return EFI_SUCCESS;
 }
 

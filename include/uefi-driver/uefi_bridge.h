@@ -59,8 +59,6 @@ EFI_STATUS NtfsGetFileInfo(EFI_NTFS_FILE* File, EFI_FILE_INFO* Info,
 EFI_STATUS NtfsSetFileInfo(EFI_NTFS_FILE* File, EFI_FILE_INFO* Info);
 UINT64 NtfsGetVolumeFreeSpace(VOID* NtfsVolume);
 UINT64 NtfsGetFileSize(EFI_NTFS_FILE* File);
-UINT64 NtfsGetFileOffset(EFI_NTFS_FILE* File);
-VOID NtfsSetFileOffset(EFI_NTFS_FILE* File, UINT64 Offset);
 EFI_STATUS NtfsRenameVolume(VOID* NtfsVolume, CONST CHAR16* Label,
 	CONST INTN Len);
 EFI_STATUS NtfsDeleteFile(EFI_NTFS_FILE* File);
