@@ -488,10 +488,10 @@ FileGetInfo(EFI_FILE_HANDLE This, EFI_GUID* Type, UINTN* Len, VOID* Data)
 {
 	EFI_STATUS Status;
 	EFI_NTFS_FILE* File = BASE_CR(This, EFI_NTFS_FILE, EfiFile);
-	EFI_FILE_SYSTEM_INFO *FSInfo = (EFI_FILE_SYSTEM_INFO*)Data;
 	EFI_FILE_INFO* Info = (EFI_FILE_INFO*)Data;
+	EFI_FILE_SYSTEM_INFO *FSInfo = (EFI_FILE_SYSTEM_INFO*)Data;
 	EFI_FILE_SYSTEM_VOLUME_LABEL *VLInfo = (EFI_FILE_SYSTEM_VOLUME_LABEL*)Data;
-	UINTN MaxLen;
+	UINTN Size;
 
 	PrintInfo(L"GetInfo(" PERCENT_P L"|'%s', %d) %s\n", (UINTN) This,
 		File->Path, *Len, File->IsDir ? L"<DIR>" : L"");
@@ -499,52 +499,53 @@ FileGetInfo(EFI_FILE_HANDLE This, EFI_GUID* Type, UINTN* Len, VOID* Data)
 	/* Determine information to return */
 	if (CompareMem(Type, &gEfiFileInfoGuid, sizeof(*Type)) == 0) {
 
-		/* Fill file information */
 		PrintExtra(L"Get regular file information\n");
-		if (*Len < MINIMUM_INFO_LENGTH) {
-			*Len = MINIMUM_INFO_LENGTH;
+
+		Size = SafeStrSize(File->BaseName);
+		FS_ASSERT(Size >= sizeof(CHAR16));
+		if (*Len < SIZE_OF_EFI_FILE_INFO + Size) {
+			*Len = SIZE_OF_EFI_FILE_INFO + Size;
 			return EFI_BUFFER_TOO_SMALL;
 		}
 
-		ZeroMem(Data, sizeof(EFI_FILE_INFO));
-		Info->Size = *Len;
-
 		/* Set the Info attributes we obtain from the path */
+		ZeroMem(Data, SIZE_OF_EFI_FILE_INFO);
 		Status = NtfsGetFileInfo(File, Info, 0, File->IsDir);
 		if (EFI_ERROR(Status)) {
 			PrintStatusError(Status, L"Could not get file info");
 			return Status;
 		}
 
-		/* The Info struct size accounts for the NUL string terminator */
-		MaxLen = (UINTN)(Info->Size - sizeof(EFI_FILE_INFO)) / sizeof(CHAR16);
-		SafeStrCpy(Info->FileName, MaxLen, File->BaseName);
-		Info->Size = sizeof(EFI_FILE_INFO) + (UINT64)MaxLen * sizeof(CHAR16);
+		CopyMem(Info->FileName, File->BaseName, Size);
+		Info->Size = SIZE_OF_EFI_FILE_INFO + Size;
 		*Len = (INTN)Info->Size;
 		return EFI_SUCCESS;
 
 	} else if (CompareMem(Type, &gEfiFileSystemInfoGuid, sizeof(*Type)) == 0) {
 
-		/* Get file system information */
 		PrintExtra(L"Get file system information\n");
-		if (*Len < MINIMUM_FS_INFO_LENGTH) {
-			*Len = MINIMUM_FS_INFO_LENGTH;
+
+		Size = (File->FileSystem->NtfsVolumeLabel == NULL) ?
+			sizeof(CHAR16) : SafeStrSize(File->FileSystem->NtfsVolumeLabel);
+		if (*Len < SIZE_OF_EFI_FILE_SYSTEM_INFO + Size) {
+			*Len = SIZE_OF_EFI_FILE_SYSTEM_INFO + Size;
 			return EFI_BUFFER_TOO_SMALL;
 		}
 
-		ZeroMem(Data, sizeof(EFI_FILE_INFO));
-		FSInfo->Size = *Len;
+		ZeroMem(Data, SIZE_OF_EFI_FILE_SYSTEM_INFO + sizeof(CHAR16));
+		FSInfo->Size = SIZE_OF_EFI_FILE_SYSTEM_INFO;
 		FSInfo->ReadOnly = NtfsIsVolumeReadOnly(File->FileSystem->NtfsVolume);
+
 		/* NB: This should really be cluster size, but we don't have access to that */
-		if (File->FileSystem->BlockIo2 != NULL) {
+		if (File->FileSystem->BlockIo2 != NULL)
 			FSInfo->BlockSize = File->FileSystem->BlockIo2->Media->BlockSize;
-		} else {
+		else
 			FSInfo->BlockSize = File->FileSystem->BlockIo->Media->BlockSize;
-		}
-		if (FSInfo->BlockSize  == 0) {
+		if (FSInfo->BlockSize == 0) {
 			PrintWarning(L"Corrected Media BlockSize\n");
 			FSInfo->BlockSize = 512;
 		}
+
 		if (File->FileSystem->BlockIo2 != NULL) {
 			FSInfo->VolumeSize = (File->FileSystem->BlockIo2->Media->LastBlock + 1) *
 				FSInfo->BlockSize;
@@ -555,25 +556,36 @@ FileGetInfo(EFI_FILE_HANDLE This, EFI_GUID* Type, UINTN* Len, VOID* Data)
 
 		FSInfo->FreeSpace = NtfsGetVolumeFreeSpace(File->FileSystem->NtfsVolume);
 
-		if (File->FileSystem->NtfsVolumeLabel == NULL) {
-			FSInfo->VolumeLabel[0] = 0;
-			*Len = sizeof(EFI_FILE_SYSTEM_INFO);
-		} else {
-			/* The Info struct size accounts for the NUL string terminator */
-			MaxLen = (INTN)(FSInfo->Size - sizeof(EFI_FILE_SYSTEM_INFO)) / sizeof(CHAR16);
-			SafeStrCpy(FSInfo->VolumeLabel, MaxLen, File->FileSystem->NtfsVolumeLabel);
-			FSInfo->Size = sizeof(EFI_FILE_SYSTEM_INFO) + (UINT64)MaxLen * sizeof(CHAR16);
-			*Len = (INTN)FSInfo->Size;
-		}
+		/* NUL string has already been populated if NtfsVolumeLabel is NULL */
+		if (File->FileSystem->NtfsVolumeLabel != NULL)
+			CopyMem(FSInfo->VolumeLabel, File->FileSystem->NtfsVolumeLabel, Size);
+		FSInfo->Size = SIZE_OF_EFI_FILE_SYSTEM_INFO + Size;
+		*Len = (INTN)FSInfo->Size;
 		return EFI_SUCCESS;
 
 	} else if (CompareMem(Type, &gEfiFileSystemVolumeLabelInfoIdGuid, sizeof(*Type)) == 0) {
 
-		/* Get the volume label */
+		PrintExtra(L"Get volume label\n");
+
+		/* Per specs, only valid for root */
+		if (!File->IsRoot)
+			return EFI_ACCESS_DENIED;
+
+		if (*Len < sizeof(CHAR16))
+			return EFI_BUFFER_TOO_SMALL;
+
+		Size = (File->FileSystem->NtfsVolumeLabel == NULL) ?
+			sizeof(CHAR16) : SafeStrSize(File->FileSystem->NtfsVolumeLabel);
+		if (Size < *Len) {
+			*Len = Size;
+			return EFI_BUFFER_TOO_SMALL;
+		}
+
 		if (File->FileSystem->NtfsVolumeLabel != NULL)
-			SafeStrCpy(VLInfo->VolumeLabel, *Len / sizeof(CHAR16), File->FileSystem->NtfsVolumeLabel);
+			CopyMem(VLInfo->VolumeLabel, File->FileSystem->NtfsVolumeLabel, Size);
 		else
 			VLInfo->VolumeLabel[0] = 0;
+		*Len = Size;
 		return EFI_SUCCESS;
 
 	} else {
@@ -599,6 +611,7 @@ FileSetInfo(EFI_FILE_HANDLE This, EFI_GUID* Type, UINTN Len, VOID* Data)
 	EFI_STATUS Status;
 	EFI_NTFS_FILE* File = BASE_CR(This, EFI_NTFS_FILE, EfiFile);
 	EFI_FILE_INFO* Info = (EFI_FILE_INFO*)Data;
+	EFI_FILE_SYSTEM_INFO* FSInfo = (EFI_FILE_SYSTEM_INFO*)Data;
 	EFI_FILE_SYSTEM_VOLUME_LABEL* VLInfo = (EFI_FILE_SYSTEM_VOLUME_LABEL*)Data;
 
 	PrintInfo(L"SetInfo(" PERCENT_P L"|'%s', %d) %s\n", (UINTN)This,
@@ -613,8 +626,12 @@ FileSetInfo(EFI_FILE_HANDLE This, EFI_GUID* Type, UINTN Len, VOID* Data)
 		if (EFI_ERROR(Status))
 			PrintStatusError(Status, L"Could not set file info");
 		return Status;
+	} else if (CompareMem(Type, &gEfiFileSystemInfoGuid, sizeof(*Type)) == 0) {
+		PrintExtra(L"Set volume label (FS)\n");
+		return NtfsRenameVolume(File->FileSystem->NtfsVolume,
+			FSInfo->VolumeLabel, (Len - SIZE_OF_EFI_FILE_SYSTEM_INFO) / sizeof(CHAR16));
 	} else if (CompareMem(Type, &gEfiFileSystemVolumeLabelInfoIdGuid, sizeof(*Type)) == 0) {
-		PrintExtra(L"Set volume label\n");
+		PrintExtra(L"Set volume label (VL)\n");
 		return NtfsRenameVolume(File->FileSystem->NtfsVolume,
 			VLInfo->VolumeLabel, Len / sizeof(CHAR16));
 	} else {

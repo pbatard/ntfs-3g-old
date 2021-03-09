@@ -65,11 +65,8 @@
 
 /* Define to the full name and version of this package. */
 #ifndef PACKAGE_STRING
-#define PACKAGE_STRING              "ntfs-3g 2021.02.20"
+#define PACKAGE_STRING              "ntfs-3g 2021.03.10"
 #endif
-
-#define MINIMUM_INFO_LENGTH         (sizeof(EFI_FILE_INFO) + 64 * sizeof(CHAR16))
-#define MINIMUM_FS_INFO_LENGTH      (sizeof(EFI_FILE_SYSTEM_INFO) + 64 * sizeof(CHAR16))
 
 /* A file instance */
 typedef struct _EFI_NTFS_FILE {

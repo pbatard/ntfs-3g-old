@@ -25,6 +25,9 @@
 #define TIME_ACCESSED       1
 #define TIME_MODIFIED       2
 
+#define NTFS_TO_UNIX_TIME(t)    ((t - (NTFS_TIME_OFFSET)) / 10000000)
+#define UNIX_TO_NTFS_TIME(t)    ((t * 10000000) + NTFS_TIME_OFFSET)
+
 /* Same as 'FILE_root' and 'FILE_first_user' from layout.h's NTFS_SYSTEM_FILES */
 #define FILE_ROOT           5
 #define FILE_FIRST_USER     16

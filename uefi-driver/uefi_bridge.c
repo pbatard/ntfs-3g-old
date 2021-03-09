@@ -1190,14 +1190,19 @@ out:
 EFI_STATUS
 NtfsSetFileInfo(EFI_NTFS_FILE* File, EFI_FILE_INFO* Info)
 {
+	CONST EFI_TIME ZeroTime = { 0 };
 	EFI_STATUS Status;
 	CHAR16* Path, * c;
 	ntfs_inode* ni = File->NtfsInode;
 	ntfs_attr* na;
 	int r;
 
-	/* Resize the data section accordingly */
 	PrintExtra(L"NtfsSetInfo for inode: %lld\n", ni->mft_no);
+
+	/* Per specs, trying to change type should return access denied  */
+	if ((!IS_DIR(ni) && (Info->Attribute & EFI_FILE_DIRECTORY)) ||
+		(IS_DIR(ni) && !(Info->Attribute & EFI_FILE_DIRECTORY)))
+		return EFI_ACCESS_DENIED;
 
 	/* If we get an absolute path, we might be moving the file */
 	if (IS_PATH_DELIMITER(Info->FileName[0])) {
@@ -1234,9 +1239,16 @@ NtfsSetFileInfo(EFI_NTFS_FILE* File, EFI_FILE_INFO* Info)
 		}
 	}
 
-	ni->creation_time = UNIX_TO_NTFS_TIME(EfiTimeToUnixTime(&Info->CreateTime));
-	ni->last_access_time = UNIX_TO_NTFS_TIME(EfiTimeToUnixTime(&Info->LastAccessTime));
-	ni->last_data_change_time = UNIX_TO_NTFS_TIME(EfiTimeToUnixTime(&Info->ModificationTime));
+	/*
+	 * Per UEFI specs: "A value of zero in CreateTime, LastAccess,
+	 * or ModificationTime causes the fields to be ignored".
+	 */
+	if (CompareMem(&Info->CreateTime, &ZeroTime, sizeof(EFI_TIME)) != 0)
+		ni->creation_time = UNIX_TO_NTFS_TIME(EfiTimeToUnixTime(&Info->CreateTime));
+	if (CompareMem(&Info->LastAccessTime, &ZeroTime, sizeof(EFI_TIME)) != 0)
+		ni->last_access_time = UNIX_TO_NTFS_TIME(EfiTimeToUnixTime(&Info->LastAccessTime));
+	if (CompareMem(&Info->ModificationTime, &ZeroTime, sizeof(EFI_TIME)) != 0)
+		ni->last_data_change_time = UNIX_TO_NTFS_TIME(EfiTimeToUnixTime(&Info->ModificationTime));
 
 	ni->flags &= ~(FILE_ATTR_READONLY | FILE_ATTR_HIDDEN | FILE_ATTR_SYSTEM | FILE_ATTR_ARCHIVE);
 	if (Info->Attribute & EFI_FILE_READ_ONLY)
@@ -1292,7 +1304,8 @@ NtfsFlushFile(EFI_NTFS_FILE* File)
 }
 
 /*
- * Change the volume label
+ * Change the volume label.
+ * Len is the length of the label, including terminating NUL character.
  */
 EFI_STATUS
 NtfsRenameVolume(VOID* NtfsVolume, CONST CHAR16* Label, CONST INTN Len)

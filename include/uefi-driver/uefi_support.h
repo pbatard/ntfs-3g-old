@@ -25,25 +25,15 @@
 #ifndef _MSC_VER
 #if !defined(__GNUC__) || (__GNUC__ < 5)
 #error gcc 5.0 or later is required for the compilation of this driver.
-#endif /* _MSC_VER */
+#endif
 
 /* Having GNU_EFI_USE_MS_ABI avoids the need for uefi_call_wrapper() */
 #if defined(_GNU_EFI) & !defined(GNU_EFI_USE_MS_ABI)
 #error gnu-efi, with option GNU_EFI_USE_MS_ABI, is required for the compilation of this driver.
 #endif
-#endif /* _GNU_EFI & !GNU_EFI_USE_MS_ABI */
+#endif /* _MSC_VER */
 
-/* Sort out the differences between EDK2 and gnu-efi */
-#ifdef __MAKEWITH_GNUEFI
-#define UnicodeSPrint           SPrint
-#define BASE_CR                 _CR
-#define FORWARD_LINK_REF(list)  (list).Flink
-#define EFI_FILE_SYSTEM_VOLUME_LABEL EFI_FILE_SYSTEM_VOLUME_LABEL_INFO
-#else
-#define FORWARD_LINK_REF(list)  (list).ForwardLink
-#endif
-
-/* Sort out some platform specifics */
+/* Some compilers complain when using %llx to print a pointer on 32-bit */
 #if defined(_M_ARM64) || defined(__aarch64__) || defined (_M_X64) || defined(__x86_64__)
 #define PERCENT_P               L"%llx"
 #else
@@ -77,14 +67,6 @@
 
 /* For safety, we set a a maximum size that strings shall not outgrow */
 #define STRING_MAX              (PATH_MAX + 2)
-
-/* Used with NtfsGetEfiTime */
-#define TIME_CREATED            0
-#define TIME_ACCESSED           1
-#define TIME_MODIFIED           2
-
-#define NTFS_TO_UNIX_TIME(t)    ((t - (NTFS_TIME_OFFSET)) / 10000000)
-#define UNIX_TO_NTFS_TIME(t)    ((t * 10000000) + NTFS_TIME_OFFSET)
 
 /* Convenience assertion macros */
 #define FL_ASSERT(f, l, a)      if(!(a)) do { Print(L"*** ASSERT FAILED: %a(%d): %a ***\n", f, l, #a); while(1); } while(0)
@@ -132,7 +114,24 @@ static __inline UINTN _SafeStrLen(CONST CHAR16* String, CONST CHAR8* File,
 #define SafeStrLen(s) _SafeStrLen(s, __FILE__, __LINE__)
 
 /*
- * There's no string duplication in EDK2
+ * Secure string size, that asserts if the string is NULL or if the size
+ * is larger than a predetermined value (STRING_MAX * sizeof(CHAR16)) or
+ * if the size is smaller than sizeof(CHAR16).
+ */
+static __inline UINTN _SafeStrSize(CONST CHAR16* String, CONST CHAR8* File,
+	CONST UINTN Line) {
+	UINTN Size = 0;
+	FL_ASSERT(File, Line, String != NULL);
+	Size = StrSize(String);
+	FL_ASSERT(File, Line, (Size >= sizeof(CHAR16)) &&
+		(Size < STRING_MAX * sizeof(CHAR16)));
+	return Size;
+}
+
+#define SafeStrSize(s) _SafeStrSize(s, __FILE__, __LINE__)
+
+/*
+ * EDK2 does not provide a StrDup call, so we define one.
  */
 static __inline CHAR16* StrDup(CONST CHAR16* Src)
 {
@@ -148,7 +147,7 @@ static __inline CHAR16* StrDup(CONST CHAR16* Src)
 }
 
 /*
- * Prototypes for the function calls provided in support.c
+ * Prototypes for the function calls provided in uefi_support.c
  */
 CHAR16* GuidToStr(EFI_GUID* Guid);
 VOID UnixTimeToEfiTime(time_t t, EFI_TIME* Time);
