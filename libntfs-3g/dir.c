@@ -773,7 +773,7 @@ ntfs_inode *ntfs_pathname_to_inode(ntfs_volume *vol, ntfs_inode *parent,
 			len = ntfs_mbstoucs(p, &unicode);
 			if (len < 0) {
 				ntfs_log_perror("Could not convert filename to Unicode:"
-					" '%s'", p);
+					" '%s'\n", p);
 				err = errno;
 				goto close;
 			} else if (len > NTFS_MAX_NAME_LEN) {
@@ -1348,7 +1348,7 @@ find_next_index_buffer:
 	if (br != 1) {
 		if (br != -1)
 			errno = EIO;
-		ntfs_log_perror("Failed to read index block");
+		ntfs_log_perror("Failed to read index block\n");
 		goto err_out;
 	}
 
@@ -1743,7 +1743,7 @@ static ntfs_inode *__ntfs_create(ntfs_inode *dir_ni, le32 securid,
 	if (ntfs_index_add_filename(dir_ni, fn, MK_MREF(ni->mft_no,
 			le16_to_cpu(ni->mrec->sequence_number)))) {
 		err = errno;
-		ntfs_log_perror("Failed to add entry to the index");
+		ntfs_log_perror("Failed to add entry to the index\n");
 		goto err_out;
 	}
 	rollback_dir = 1;
@@ -2225,7 +2225,7 @@ static int ntfs_link_i(ntfs_inode *ni, ntfs_inode *dir_ni, const ntfschar *name,
 	if (!ni || !dir_ni || !name || !name_len || 
 			ni->mft_no == dir_ni->mft_no) {
 		err = EINVAL;
-		ntfs_log_perror("ntfs_link wrong arguments");
+		ntfs_log_perror("ntfs_link wrong arguments\n");
 		goto err_out;
 	}
 	
@@ -2267,7 +2267,7 @@ static int ntfs_link_i(ntfs_inode *ni, ntfs_inode *dir_ni, const ntfschar *name,
 	if (ntfs_index_add_filename(dir_ni, fn, MK_MREF(ni->mft_no,
 			le16_to_cpu(ni->mrec->sequence_number)))) {
 		err = errno;
-		ntfs_log_perror("Failed to add filename to the index");
+		ntfs_log_perror("Failed to add filename to the index\n");
 		goto err_out;
 	}
 	/* Add FILE_NAME attribute to inode. */

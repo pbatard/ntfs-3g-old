@@ -1006,7 +1006,7 @@ res_err_out:
 				le32_to_cpu(ctx->attr->value_length) >
 				(char*)ctx->mrec + vol->mft_record_size) {
 			errno = EIO;
-			ntfs_log_perror("%s: Sanity check failed", __FUNCTION__);
+			ntfs_log_perror("%s: Sanity check failed\n", __FUNCTION__);
 			goto res_err_out;
 		}
 		memcpy(b, val + pos, count);
@@ -1061,7 +1061,7 @@ res_err_out:
 		 */
 		if (errno == ENOENT) {
 			errno = EIO;
-			ntfs_log_perror("%s: Failed to find VCN #1", __FUNCTION__);
+			ntfs_log_perror("%s: Failed to find VCN #1\n", __FUNCTION__);
 		}
 		return -1;
 	}
@@ -1860,7 +1860,7 @@ static s64 ntfs_attr_pwrite_i(ntfs_attr *na, const s64 pos, s64 count,
 		if (ntfs_attr_truncate_i(na, pos + count,
 					(NAttrDataAppending(na) ?
 						HOLES_DELAY : HOLES_OK))) {
-			ntfs_log_perror("Failed to enlarge attribute");
+			ntfs_log_perror("Failed to enlarge attribute\n");
 			goto errno_set;
 		}
 		/*
@@ -1872,7 +1872,7 @@ static s64 ntfs_attr_pwrite_i(ntfs_attr *na, const s64 pos, s64 count,
 			need_to.undo_data_size = 1;
 #else
 		if (ntfs_attr_truncate_i(na, pos + count, HOLES_OK)) {
-			ntfs_log_perror("Failed to enlarge attribute");
+			ntfs_log_perror("Failed to enlarge attribute\n");
 			goto errno_set;
 		}
 #endif
@@ -2665,7 +2665,7 @@ s64 ntfs_attr_mst_pwrite(ntfs_attr *na, const s64 pos, s64 bk_cnt,
 				((u8*)src + i * bk_size), bk_size);
 		if (err < 0) {
 			/* Abort write at this position. */
-			ntfs_log_perror("%s #1", __FUNCTION__);
+			ntfs_log_perror("%s #1\n", __FUNCTION__);
 			if (!i)
 				return err;
 			bk_cnt = i;
@@ -2675,7 +2675,7 @@ s64 ntfs_attr_mst_pwrite(ntfs_attr *na, const s64 pos, s64 bk_cnt,
 	/* Write the prepared data. */
 	written = ntfs_attr_pwrite(na, pos, bk_cnt * bk_size, src);
 	if (written <= 0) {
-		ntfs_log_perror("%s: written=%lld", __FUNCTION__,
+		ntfs_log_perror("%s: written=%lld\n", __FUNCTION__,
 				(long long)written);
 	}
 	/* Quickly deprotect the data again. */
@@ -6287,7 +6287,7 @@ static int ntfs_non_resident_attr_expand_i(ntfs_attr *na, const s64 newsize,
 					DATA_ZONE);
 			if (!rl) {
 				ntfs_log_perror("Cluster allocation failed "
-						"(%lld)",
+						"(%lld)\n",
 						(long long)first_free_vcn -
 						((long long)na->allocated_size >>
 						 vol->cluster_size_bits));

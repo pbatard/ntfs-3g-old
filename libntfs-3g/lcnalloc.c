@@ -359,7 +359,7 @@ runlist *ntfs_cluster_alloc(ntfs_volume *vol, VCN start_vcn, s64 count,
 				trl = realloc(rl, rlsize);
 				if (!trl) {
 					err = ENOMEM;
-					ntfs_log_perror("realloc() failed");
+					ntfs_log_perror("realloc() failed\n");
 					goto wb_err_ret;
 				}
 				rl = trl;
@@ -540,7 +540,7 @@ done_err_ret:
 	free(buf);
 	if (err) {
 		errno = err;
-		ntfs_log_perror("Failed to allocate clusters");
+		ntfs_log_perror("Failed to allocate clusters\n");
 		rl = NULL;
 	}
 out:	

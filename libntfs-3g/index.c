@@ -89,7 +89,7 @@ static int ntfs_ib_write(ntfs_index_context *icx, INDEX_BLOCK *ib)
 	ret = ntfs_attr_mst_pwrite(icx->ia_na, ntfs_ib_vcn_to_pos(icx, vcn),
 				   1, icx->block_size, ib);
 	if (ret != 1) {
-		ntfs_log_perror("Failed to write index block %lld, inode %llu",
+		ntfs_log_perror("Failed to write index block %lld, inode %llu\n",
 			(long long)vcn, (unsigned long long)icx->ni->mft_no);
 		return STATUS_ERROR;
 	}
@@ -1266,7 +1266,7 @@ static int ntfs_ir_make_space(ntfs_index_context *icx, int data_size)
 		if (ret == STATUS_OK)
 			ret = STATUS_KEEP_SEARCHING;
 		else
-			ntfs_log_perror("Failed to nodify INDEX_ROOT");
+			ntfs_log_perror("Failed to nodify INDEX_ROOT\n");
 	}
 
 	return ret;
@@ -1468,11 +1468,11 @@ int ntfs_ie_add(ntfs_index_context *icx, INDEX_ENTRY *ie)
 				
 		if (!ntfs_index_lookup(&ie->key, le16_to_cpu(ie->key_length), icx)) {
 			errno = EEXIST;
-			ntfs_log_perror("Index already have such entry");
+			ntfs_log_perror("Index already have such entry\n");
 			goto err_out;
 		}
 		if (errno != ENOENT) {
-			ntfs_log_perror("Failed to find place for new entry");
+			ntfs_log_perror("Failed to find place for new entry\n");
 			goto err_out;
 		}
 		
