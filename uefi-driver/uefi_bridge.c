@@ -1168,7 +1168,7 @@ NtfsMoveFile(EFI_NTFS_FILE* File, CHAR16* NewPath)
 
 	/* Create the target */
 	ni = File->NtfsInode;
-	if (ntfs_link(ni, SameDir ? parent_ni : newparent_ni, File->BaseName, StrLen(File->BaseName))) {
+	if (ntfs_link(ni, SameDir ? parent_ni : newparent_ni, &NewPath[Len + 1], StrLen(&NewPath[Len + 1]))) {
 		Status = ErrnoToEfiStatus();
 		goto out;
 	}
