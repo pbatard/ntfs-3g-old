@@ -73,7 +73,10 @@ typedef struct _EFI_NTFS_FILE {
 	EFI_FILE                         EfiFile;
 	BOOLEAN                          IsDir;
 	BOOLEAN                          IsRoot;
-	INTN                             DirIndex;
+	UINTN                            DirEntryCount;
+	UINTN                            DirEntrySize;
+	UINTN                            DirPos;
+	EFI_FILE_INFO                   *DirEntry;
 	INT64                            Offset;
 	CHAR16                          *Path;
 	CHAR16                          *BaseName;

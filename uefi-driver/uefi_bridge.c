@@ -602,6 +602,7 @@ NtfsFreeFile(EFI_NTFS_FILE* File)
 		return;
 	/* Only destroy a file that has no refs */
 	if (File->RefCount <= 0) {
+		FreePool(File->DirEntry);
 		FreePool(File->Path);
 		FreePool(File);
 	}
