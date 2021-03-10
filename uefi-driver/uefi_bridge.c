@@ -54,6 +54,7 @@ static EFI_STATUS ErrnoToEfiStatus(VOID)
 	case ECANCELED:
 		return EFI_ABORTED;
 	case EACCES:
+	case EEXIST:
 	case ETXTBSY:
 		return EFI_ACCESS_DENIED;
 	case EADDRINUSE:
@@ -131,13 +132,80 @@ static EFI_STATUS ErrnoToEfiStatus(VOID)
 		return EFI_VOLUME_CORRUPTED;
 	case ENOSPC:
 		return EFI_VOLUME_FULL;
-	case EEXIST:
 	case EROFS:
 		return EFI_WRITE_PROTECTED;
 	case EPERM:
 		return EFI_SECURITY_VIOLATION;
 	default:
 		return EFI_NO_MAPPING;
+	}
+}
+
+/*
+ * Set errno from an EFI_STATUS code
+ */
+VOID NtfsSetErrno(EFI_STATUS Status)
+{
+	switch (Status) {
+	case EFI_SUCCESS:
+		errno = 0; break;
+	case EFI_LOAD_ERROR:
+		errno = ENOEXEC; break;
+	case EFI_INVALID_PARAMETER:
+		errno = EINVAL; break;
+	case EFI_UNSUPPORTED:
+		errno = ENOTSUP; break;
+	case EFI_BAD_BUFFER_SIZE:
+		errno = EMSGSIZE; break;
+	case EFI_BUFFER_TOO_SMALL:
+		errno = E2BIG; break;
+	case EFI_NOT_READY:
+		errno = EAGAIN; break;
+	case EFI_DEVICE_ERROR:
+		errno = ENODEV; break;
+	case EFI_MEDIA_CHANGED:
+	case EFI_NO_MEDIA:
+		errno = ENOMEDIUM; break;
+	case EFI_WRITE_PROTECTED:
+		errno = EROFS; break;
+	case EFI_OUT_OF_RESOURCES:
+		errno = ENOMEM; break;
+	case EFI_VOLUME_CORRUPTED:
+		errno = EXDEV; break;
+	case EFI_VOLUME_FULL:
+		errno = ENOSPC; break;
+	case EFI_NOT_FOUND:
+		errno = ENOENT; break;
+	case EFI_ACCESS_DENIED:
+		errno = EACCES; break;
+	case EFI_NO_RESPONSE:
+		errno = EBUSY; break;
+	case EFI_TIMEOUT:
+		errno = ETIMEDOUT; break;
+	case EFI_NOT_STARTED:
+		errno = ESRCH; break;
+	case EFI_ALREADY_STARTED:
+		errno = EALREADY; break;
+	case EFI_ABORTED:
+		errno = ECANCELED; break;
+	case EFI_ICMP_ERROR:
+	case EFI_TFTP_ERROR:
+	case EFI_CRC_ERROR:
+	case EFI_PROTOCOL_ERROR:
+	case EFI_INVALID_LANGUAGE:
+		errno = EPROTO; break;
+	case EFI_INCOMPATIBLE_VERSION:
+		errno = ENOEXEC; break;
+	case EFI_SECURITY_VIOLATION:
+		errno = EPERM; break;
+	case EFI_END_OF_MEDIA:
+		errno = EFBIG; break;
+	case EFI_END_OF_FILE:
+		errno = ESPIPE;
+	case EFI_COMPROMISED_DATA:
+	case EFI_NO_MAPPING:
+	default:
+		errno = EFAULT;
 	}
 }
 

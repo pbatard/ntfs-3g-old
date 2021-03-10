@@ -48,6 +48,10 @@
 #define MIN(x,y)                ((x)<(y)?(x):(y))
 #endif
 
+#ifndef MAX
+#define MAX(x,y)                ((x)>(y)?(x):(y))
+#endif
+
 #ifndef PATH_MAX
 #define PATH_MAX                4096
 #endif

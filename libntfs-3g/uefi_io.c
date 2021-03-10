@@ -49,13 +49,13 @@ static int ntfs_device_uefi_io_open(struct ntfs_device *dev, int flags)
 	/* All the devices we access are block devices */
 	NDevSetBlock(dev);
 	dev->d_private = NULL;
-	
+
 	/*
 	 * Use the Device Path to locate an pre-existing instance from
 	 * the global EFI_FS list we maintain.
 	 */
 	ntfs_mbstoucs(dev->d_name, &DevName);
-	for (FileSystem = (EFI_FS*)FORWARD_LINK_REF(FsListHead);
+	for (FileSystem = (EFI_FS*)((EFI_FS*)&FsListHead)->ForwardLink;
 		FileSystem != (EFI_FS*)&FsListHead;
 		FileSystem = (EFI_FS*)FileSystem->ForwardLink) {
 		if (StrCmp(FileSystem->DevicePathString, DevName) == 0)
@@ -69,7 +69,7 @@ static int ntfs_device_uefi_io_open(struct ntfs_device *dev, int flags)
 
 	FileSystem->Offset = 0;
 	dev->d_private = FileSystem;
-	if ((flags & O_RDWR) != O_RDWR)
+	if (FileSystem->BlockIo->Media->ReadOnly || (flags & O_RDWR) != O_RDWR)
 		NDevSetReadOnly(dev);
 	NDevSetOpen(dev);
 

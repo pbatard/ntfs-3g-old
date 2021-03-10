@@ -398,6 +398,8 @@ char* strerror(int errnum)
 		return "Directory not empty (ENOTEMPTY)";
 	case EILSEQ:
 		return "Illegal byte sequence (EILSEQ)";
+	case ECANCELED:
+		return "Cancelled (ECANCELED)";
 	default:
 		errnum &= 0xff;
 		default_message[19] = (errnum / 100) + '0';

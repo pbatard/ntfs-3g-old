@@ -63,3 +63,4 @@ EFI_STATUS NtfsRenameVolume(VOID* NtfsVolume, CONST CHAR16* Label,
 	CONST INTN Len);
 EFI_STATUS NtfsDeleteFile(EFI_NTFS_FILE* File);
 EFI_STATUS NtfsFlushFile(EFI_NTFS_FILE* File);
+VOID NtfsSetErrno(EFI_STATUS Status);
