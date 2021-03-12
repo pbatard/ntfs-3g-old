@@ -18,8 +18,6 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <stdint.h>
-
 #include "uefi_driver.h"
 #include "uefi_bridge.h"
 #include "uefi_logging.h"
@@ -63,11 +61,14 @@ FileOpen(EFI_FILE_HANDLE This, EFI_FILE_HANDLE* New,
 		return EFI_NOT_FOUND;
 	}
 
+	/* Prevent the creation of files named '', '.' or '..' */
+	if ((Mode & EFI_FILE_MODE_CREATE) && (
+		(*Name == 0) || (StrCmp(Name, L".") == 0) ||
+		(StrCmp(Name, L"..") == 0)))
+		return EFI_ACCESS_DENIED;
+
 	/* See if we're trying to reopen current (which the Shell insists on doing) */
 	if ((*Name == 0) || (StrCmp(Name, L".") == 0)) {
-		/* Prevent the creation of a file named '..' */
-		if (Mode & EFI_FILE_MODE_CREATE)
-			return EFI_NOT_FOUND;
 		PrintInfo(L"  Reopening %s\n", File->IsRoot ? L"<ROOT>" : File->Path);
 		File->RefCount++;
 		File->FileSystem->TotalRefCount++;
@@ -229,6 +230,9 @@ FileDelete(EFI_FILE_HANDLE This)
 	PrintInfo(L"Delete(" PERCENT_P L"|'%s') %s\n", (UINTN)This, File->Path,
 		File->IsRoot ? L"<ROOT>" : L"");
 
+	if (File->IsRoot || File->NtfsInode == NULL)
+		return EFI_ACCESS_DENIED;
+
 	File->RefCount--;
 	FileSystem->TotalRefCount--;
 	PrintExtra(L"TotalRefCount = %d\n", FileSystem->TotalRefCount);
@@ -261,30 +265,38 @@ FileDelete(EFI_FILE_HANDLE This)
  * entry each, and on the other hand, ntfs-3g wants a single readdir()
  * call on a directory inode, that invokes a callback for each directory
  * entry. Thus, a basic way of processing dirs, by invoking readddir()
- * for each UEFI Read() call, and then using the repeated callbacks to
- * match with the relevant entry, could turn out to be very wasteful, as
- * we'd literally be invoking a full directory listing for every entry.
- * The end result is that, if you are listing something like the Windows
- * System32 dir, that typically contains more than 3,000 entries you'd
- * actually be issuing 3,000+ complete separate directory listings...
+ * for each UEFI Read() call and then using the repeated callbacks to
+ * match with the relevant entry, would turn out to be very wasteful as
+ * we'd literally be invoking a full directory listing for every entry
+ * with the end result that, if you were to list something like Windows'
+ * System32 dir, that typically contains more than 3,000 entries, you'd
+ * end up issuing 3,000+ *full* directory listings.
  *
- * To improve performance, we therefore cache the directory listings we
- * get from ntfs-3g, through a two-pass callback system: The first pass
- * to count the entries and the second to fill the cached data (NB: We
- * could also really do it in a single pass, but the performance gain
- * would be minimal, and two passes more convenient). Then, when UEFI
- * calls Read(), we simply return the cached data.
+ * In order to improve performance, we therefore implement a mechanism
+ * that caches the directory listings we get from ntfs-3g, through a
+ * two-pass callback system:
+ * - The first pass counts the number of entries and determines the
+ *   maximum filename size, so that we can allocate a properly sized
+ *   array of EFI_FILE_INFO structures.
+ * - The second pass fills the newly allocated array with the relevant
+ *   data.
+ * Then, when UEFI calls Read(), we just return the cached entry.
  *
- * Note that, for performance, we do reuse the same cache until the dir
- * handle is closed, which means that, entries that are created in a
- * directory don't get listed until the directory is reopened. For UEFI
- * Shell usage, this is more than good enough. However, if you are using
- * this driver in an application, and are creating files, you need to
- * bear in mind that they won't be listed until you reopen the directory.
+ * While this of course requires additional memory, if we assume a max
+ * filename length of about 64 characters, the overhead is of about 200
+ * KB per 1000 directory entries, which we deem more than acceptable,
+ * even for low memory UEFI systems.
+ * 
+ * Note that, for performance reasons, we do reuse the same cache for
+ * all of the directory handles we serve, and, more importantly, that
+ * the cache does not get updated until all handles have been closed.
+ * For typical UEFI Shell usage, this is more than good enough. But if
+ * you are using this driver in an application, please be mindful that
+ * directory changes may not appear until that directory is reopened.
  */
 
 /**
- * First-pass DirHook, to count directory entries
+ * First-pass DirHook: Count entries and find the max filename length.
  */
 static INT32 DirHookCount(VOID* Data, CONST CHAR16* Name,
 	CONST INT32 NameLen, CONST INT32 NameType, CONST INT64 Pos,
@@ -303,7 +315,7 @@ static INT32 DirHookCount(VOID* Data, CONST CHAR16* Name,
 }
 
 /**
- * Second-pass DirHook, to cache directory entries
+ * Second-pass DirHook: Fill the EFI_FILE_INFO cache array.
  */
 static INT32 DirHookCache(VOID* Data, CONST CHAR16* Name,
 	CONST INT32 NameLen, CONST INT32 NameType, CONST INT64 Pos,
@@ -334,7 +346,7 @@ static INT32 DirHookCache(VOID* Data, CONST CHAR16* Name,
 	/* Also for safety, validate that NameLen still fits our records */
 	if (SIZE_OF_EFI_FILE_INFO + ((UINTN)NameLen + 1) * sizeof(CHAR16) > File->DirEntrySize) {
 		PrintError(L"Unexpected directory entry name length!");
-		/* We could truncate the name, but something's amiss here */
+		/* We could just truncate the name, but something's amiss here */
 		return -1;
 	}
 
@@ -448,6 +460,9 @@ FileRead(EFI_FILE_HANDLE This, UINTN* Len, VOID* Data)
 	PrintExtra(L"Read(" PERCENT_P L"|'%s', %d) %s\n", (UINTN)This, File->Path,
 		*Len, File->IsDir ? L"<DIR>" : L"");
 
+	if (File->NtfsInode == NULL)
+		return EFI_DEVICE_ERROR;
+
 	/* If this is a directory, then fetch the directory entries */
 	if (File->IsDir) {
 		/*
@@ -489,6 +504,9 @@ FileWrite(EFI_FILE_HANDLE This, UINTN* Len, VOID* Data)
 	PrintExtra(L"Write(" PERCENT_P L"|'%s', %d) %s\n", (UINTN)This, File->Path,
 		*Len, File->IsDir ? L"<DIR>" : L"");
 
+	if (File->NtfsInode == NULL)
+		return EFI_DEVICE_ERROR;
+
 	if (NtfsIsVolumeReadOnly(File->FileSystem->NtfsVolume))
 		return EFI_WRITE_PROTECTED;
 
@@ -522,6 +540,9 @@ FileSetPosition(EFI_FILE_HANDLE This, UINT64 Position)
 	PrintInfo(L"SetPosition(" PERCENT_P L"|'%s', %lld) %s\n", (UINTN) This,
 		File->Path, Position, (File->IsDir) ? L"<DIR>" : L"");
 
+	if (File->NtfsInode == NULL)
+		return EFI_DEVICE_ERROR;
+
 	if (File->IsDir) {
 		/* Per specs: "The only position that may be set is zero" */
 		if (Position != 0)
@@ -532,7 +553,7 @@ FileSetPosition(EFI_FILE_HANDLE This, UINT64 Position)
 
 	FileSize = NtfsGetFileSize(File);
 	/* Per specs */
-	if (Position == UINT64_MAX)
+	if (Position == 0xFFFFFFFFFFFFFFFFULL)
 		Position = FileSize;
 	if (Position > FileSize) {
 		PrintError(L"'%s': Cannot seek to #%llx of %llx\n",
@@ -561,6 +582,9 @@ FileGetPosition(EFI_FILE_HANDLE This, UINT64* Position)
 	EFI_NTFS_FILE* File = BASE_CR(This, EFI_NTFS_FILE, EfiFile);
 
 	PrintInfo(L"GetPosition(" PERCENT_P L"|'%s', %lld)\n", (UINTN) This, File->Path);
+
+	if (File->NtfsInode == NULL)
+		return EFI_DEVICE_ERROR;
 
 	/* Per UEFI specs */
 	if (File->IsDir)
@@ -591,6 +615,9 @@ FileGetInfo(EFI_FILE_HANDLE This, EFI_GUID* Type, UINTN* Len, VOID* Data)
 
 	PrintInfo(L"GetInfo(" PERCENT_P L"|'%s', %d) %s\n", (UINTN) This,
 		File->Path, *Len, File->IsDir ? L"<DIR>" : L"");
+
+	if (File->NtfsInode == NULL)
+		return EFI_DEVICE_ERROR;
 
 	/* Determine information to return */
 	if (CompareMem(Type, &gEfiFileInfoGuid, sizeof(*Type)) == 0) {
@@ -716,18 +743,33 @@ FileSetInfo(EFI_FILE_HANDLE This, EFI_GUID* Type, UINTN Len, VOID* Data)
 	if (NtfsIsVolumeReadOnly(File->FileSystem->NtfsVolume))
 		return EFI_WRITE_PROTECTED;
 
+	if (File->NtfsInode == NULL)
+		return EFI_DEVICE_ERROR;
+
 	if (CompareMem(Type, &gEfiFileInfoGuid, sizeof(*Type)) == 0) {
 		PrintExtra(L"Set regular file information\n");
+		if ((Len < SIZE_OF_EFI_FILE_INFO + sizeof(CHAR16)) ||
+			(StrSize(Info->FileName) > Len - SIZE_OF_EFI_FILE_INFO))
+			return EFI_BAD_BUFFER_SIZE;
 		Status = NtfsSetFileInfo(File, Info);
 		if (EFI_ERROR(Status))
 			PrintStatusError(Status, L"Could not set file info");
 		return Status;
 	} else if (CompareMem(Type, &gEfiFileSystemInfoGuid, sizeof(*Type)) == 0) {
 		PrintExtra(L"Set volume label (FS)\n");
+		if (!File->IsRoot)
+			return EFI_ACCESS_DENIED;
+		if ((Len < SIZE_OF_EFI_FILE_SYSTEM_INFO + sizeof(CHAR16)) ||
+			(StrSize(FSInfo->VolumeLabel) > Len - SIZE_OF_EFI_FILE_SYSTEM_INFO))
+			return EFI_BAD_BUFFER_SIZE;
 		return NtfsRenameVolume(File->FileSystem->NtfsVolume,
 			FSInfo->VolumeLabel, (Len - SIZE_OF_EFI_FILE_SYSTEM_INFO) / sizeof(CHAR16));
 	} else if (CompareMem(Type, &gEfiFileSystemVolumeLabelInfoIdGuid, sizeof(*Type)) == 0) {
 		PrintExtra(L"Set volume label (VL)\n");
+		if (!File->IsRoot)
+			return EFI_ACCESS_DENIED;
+		if (Len < sizeof(CHAR16) || StrSize(VLInfo->VolumeLabel) > Len)
+			return EFI_BAD_BUFFER_SIZE;
 		return NtfsRenameVolume(File->FileSystem->NtfsVolume,
 			VLInfo->VolumeLabel, Len / sizeof(CHAR16));
 	} else {
@@ -751,6 +793,9 @@ FileFlush(EFI_FILE_HANDLE This)
 	EFI_NTFS_FILE* File = BASE_CR(This, EFI_NTFS_FILE, EfiFile);
 
 	PrintInfo(L"Flush(" PERCENT_P L"|'%s')\n", (UINTN) This, File->Path);
+
+	if (File->NtfsInode == NULL)
+		return EFI_DEVICE_ERROR;
 
 	if (NtfsIsVolumeReadOnly(File->FileSystem->NtfsVolume))
 		return EFI_SUCCESS;

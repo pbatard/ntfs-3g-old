@@ -329,6 +329,7 @@ NtfsLookup(EFI_NTFS_FILE* File, UINT64 Inum, BOOLEAN IgnoreSelf)
 	for (Entry = (LookupEntry*)ListHead->ForwardLink;
 		Entry != ListHead;
 		Entry = (LookupEntry*)Entry->ForwardLink) {
+		FS_ASSERT(Entry->File->NtfsInode != NULL);
 		if (Inum == 0) {
 			/* If IgnoreSelf is active, prevent param from matching */
 			if (IgnoreSelf && Entry->File == File)
@@ -487,6 +488,7 @@ NtfsOpenInodeFromPath(EFI_FS* FileSystem, CONST CHAR16* Path)
 EFI_STATUS
 NtfsMountVolume(EFI_FS* FileSystem)
 {
+	EFI_STATUS Status = EFI_SUCCESS;
 	ntfs_volume* vol = NULL;
 	ntfs_mount_flags flags = NTFS_MNT_EXCLUSIVE | NTFS_MNT_IGNORE_HIBERFILE | NTFS_MNT_MAY_RDONLY;
 	char* device = NULL;
@@ -512,10 +514,35 @@ NtfsMountVolume(EFI_FS* FileSystem)
 
 	vol = ntfs_mount(device, flags);
 	FreePool(device);
+
+	/* Detect error conditions */
 	if (vol == NULL) {
-		RemoveEntryList((LIST_ENTRY*)FileSystem);
-		return EFI_NOT_FOUND;
+		switch (ntfs_volume_error(errno)) {
+		case NTFS_VOLUME_CORRUPT:
+			Status = EFI_VOLUME_CORRUPTED; break;
+		case NTFS_VOLUME_LOCKED:
+		case NTFS_VOLUME_NO_PRIVILEGE:
+			Status = EFI_ACCESS_DENIED; break;
+		case NTFS_VOLUME_OUT_OF_MEMORY:
+			Status = EFI_OUT_OF_RESOURCES; break;
+		default:
+			Status = EFI_NOT_FOUND; break;
+		}
+		/* If we had a serial before, then the media was removed */
+		if (FileSystem->NtfsVolumeSerial != 0)
+			Status = EFI_NO_MEDIA;
+	} else if ((FileSystem->NtfsVolumeSerial != 0) &&
+		(vol->vol_serial != FileSystem->NtfsVolumeSerial)) {
+		Status = EFI_MEDIA_CHANGED;
 	}
+	if (EFI_ERROR(Status)) {
+		RemoveEntryList((LIST_ENTRY*)FileSystem);
+		return Status;
+	}
+
+	/* Store the serial to detect media change/removal */
+	FileSystem->NtfsVolumeSerial = vol->vol_serial;
+
 	/* Population of free space must be done manually */
 	ntfs_volume_get_free_space(vol);
 	FileSystem->NtfsVolume = vol;
@@ -649,7 +676,7 @@ NtfsCloseFile(EFI_NTFS_FILE* File)
 	EFI_NTFS_FILE* Parent = NULL;
 	u64 parent_inum;
 
-	if (File == NULL)
+	if (File == NULL || File->NtfsInode == NULL)
 		return;
 	/*
 	 * If the inode is dirty, ntfs_inode_close() will issue an
@@ -697,10 +724,10 @@ NtfsReadFile(EFI_NTFS_FILE* File, VOID* Data, UINTN* Len)
 
 	max_read = na->data_size;
 	if (File->Offset + size > max_read) {
-		if (max_read < File->Offset) {
-			*Len = 0;
+		if (File->Offset >= max_read) {
+			/* Per UEFI specs */
 			ntfs_attr_close(na);
-			return EFI_SUCCESS;
+			return EFI_DEVICE_ERROR;
 		}
 		size = max_read - File->Offset;
 	}
@@ -907,6 +934,12 @@ NtfsCreateFile(EFI_NTFS_FILE** FilePointer)
 		goto out;
 	}
 
+	/* Similar to FUSE: Deny creating into $Extend */
+	if (dir_ni->mft_no == FILE_Extend) {
+		Status = EFI_ACCESS_DENIED;
+		goto out;
+	}
+
 	/* Find if the inode we are trying to create already exists */
 	sz = to_utf8(File->BaseName, &basename);
 	if (sz <= 0) {
@@ -978,6 +1011,8 @@ NtfsDeleteFile(EFI_NTFS_FILE* File)
 		dir_ni = NtfsOpenInodeFromPath(File->FileSystem, File->Path);
 		File->BaseName[-1] = PATH_CHAR;
 		/* TODO: We may need to open the grandparent here too... */
+		if (dir_ni == NULL)
+			return ErrnoToEfiStatus();
 	} else {
 		/*
 		 * ntfs-3g may attempt to reopen the file's grandparent, since it
@@ -1001,6 +1036,10 @@ NtfsDeleteFile(EFI_NTFS_FILE* File)
 		parent_inum = dir_ni->mft_no;
 	}
 
+	/* Similar to FUSE: Deny deleting from $Extend */
+	if (dir_ni->mft_no == FILE_Extend)
+		return EFI_ACCESS_DENIED;
+
 	/* Delete the file */
 	r = ntfs_delete(File->FileSystem->NtfsVolume, NULL, File->NtfsInode,
 		dir_ni, File->BaseName, SafeStrLen(File->BaseName));
@@ -1009,6 +1048,7 @@ NtfsDeleteFile(EFI_NTFS_FILE* File)
 		PrintError(L"%a failed: %a\n", __FUNCTION__, strerror(errno));
 		return EFI_WARN_DELETE_FAILURE;
 	}
+	File->NtfsInode = NULL;
 
 	/* Reopen Parent or GrandParent if they were closed */
 	if (Parent != NULL) {
@@ -1257,7 +1297,7 @@ NtfsSetFileInfo(EFI_NTFS_FILE* File, EFI_FILE_INFO* Info)
 
 	PrintExtra(L"NtfsSetInfo for inode: %lld\n", ni->mft_no);
 
-	/* Per specs, trying to change type should return access denied  */
+	/* Per UEFI specs, trying to change type should return access denied  */
 	if ((!IS_DIR(ni) && (Info->Attribute & EFI_FILE_DIRECTORY)) ||
 		(IS_DIR(ni) && !(Info->Attribute & EFI_FILE_DIRECTORY)))
 		return EFI_ACCESS_DENIED;

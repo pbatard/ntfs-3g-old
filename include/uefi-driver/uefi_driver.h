@@ -98,6 +98,7 @@ typedef struct _EFI_FS {
 	CHAR16                          *DevicePathString;
 	VOID                            *NtfsVolume;
 	CHAR16                          *NtfsVolumeLabel;
+	UINT64                           NtfsVolumeSerial;
 	INT64                            Offset;
 	INTN                             MountCount;
 	INTN                             TotalRefCount;
