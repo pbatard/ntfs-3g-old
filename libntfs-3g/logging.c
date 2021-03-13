@@ -482,8 +482,18 @@ int ntfs_log_handler_uefi(const char* function __attribute__((unused)), const ch
 
 	ret = AsciiVSPrint(logbuf, LOG_LINE_LEN, ascii_format, args);
 	free(ascii_format);
-	if (ret > 0)
-		ret = AsciiPrint("%a%a", ntfs_log_get_prefix(level), logbuf);
+	if (ret > 0) {
+		if (ntfs_log.flags & NTFS_LOG_FLAG_PREFIX)	/* Prefix the output */
+			AsciiPrint("%a", ntfs_log_get_prefix(level));
+		if (ntfs_log.flags & NTFS_LOG_FLAG_FILENAME)	/* Source filename */
+			AsciiPrint("%a ", file);
+		if (ntfs_log.flags & NTFS_LOG_FLAG_LINE)	/* Source line number */
+			AsciiPrint("(%d) ", line);
+		if ((ntfs_log.flags & NTFS_LOG_FLAG_FUNCTION) || /* Source function */
+			(level & NTFS_LOG_LEVEL_TRACE) || (level & NTFS_LOG_LEVEL_ENTER))
+			AsciiPrint("%a(): ", function);
+		AsciiPrint(logbuf);
+	}
 	return (int)ret;
 }
 

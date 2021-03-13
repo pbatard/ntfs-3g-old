@@ -69,10 +69,6 @@
 /* Disable reparse plugins */
 #define DISABLE_PLUGINS     1
 
-#if defined(DEBUG)
-#define ENABLE_DEBUG        1
-#endif
-
 /* Force UTF-8 always */
 #define FORCE_UTF8          1
 
@@ -233,6 +229,11 @@ struct passwd {
  * Likewise makedev is pointless for us, so we define a simplified version.
  */
 #define makedev(major, minor) (((major & 0xffff) << 16) | (minor & 0xffff))
+
+/*
+ * Freeze execution with a message on exit condition
+ */
+#define exit(x)         do {ntfs_log_critical("Driver exit requested!\n"); while(1);} while(0)
 
 /*
  * open/close/read are referenced, but aren't expected to be called.
