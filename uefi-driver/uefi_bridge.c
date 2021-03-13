@@ -275,6 +275,9 @@ NtfsSetLogger(UINTN Level)
 	if (Level >= FS_LOGLEVEL_EXTRA)
 		levels |= NTFS_LOG_LEVEL_TRACE;
 
+	ntfs_log_clear_flags(UINT32_MAX);
+	/* If needed, NTFS_LOG_FLAG_FILENAME | NTFS_LOG_FLAG_LINE can be added */
+	ntfs_log_set_flags(NTFS_LOG_FLAG_PREFIX);
 	ntfs_log_clear_levels(UINT32_MAX);
 	ntfs_log_set_levels(levels);
 }

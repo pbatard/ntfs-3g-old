@@ -298,7 +298,8 @@ FileDelete(EFI_FILE_HANDLE This)
 /**
  * First-pass DirHook: Count entries and find the max filename length.
  */
-static INT32 DirHookCount(VOID* Data, CONST CHAR16* Name,
+static INT32
+DirHookCount(VOID* Data, CONST CHAR16* Name,
 	CONST INT32 NameLen, CONST INT32 NameType, CONST INT64 Pos,
 	CONST UINT64 MRef, CONST UINT32 DtType)
 {
@@ -317,7 +318,8 @@ static INT32 DirHookCount(VOID* Data, CONST CHAR16* Name,
 /**
  * Second-pass DirHook: Fill the EFI_FILE_INFO cache array.
  */
-static INT32 DirHookCache(VOID* Data, CONST CHAR16* Name,
+static INT32
+DirHookCache(VOID* Data, CONST CHAR16* Name,
 	CONST INT32 NameLen, CONST INT32 NameType, CONST INT64 Pos,
 	CONST UINT64 MRef, CONST UINT32 DtType)
 {
