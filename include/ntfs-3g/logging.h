@@ -114,7 +114,7 @@ int ntfs_log_redirect(const char *function, const char *file, int line,
 /* By default debug and trace messages are compiled into the program,
  * but not displayed.
  */
-#ifdef DEBUG
+#ifdef ENABLE_DEBUG
 #define ntfs_log_debug(...) ntfs_log_redirect(__FUNCTION__,__FILE__,__LINE__,NTFS_LOG_LEVEL_DEBUG,NULL,__VA_ARGS__)
 #define ntfs_log_trace(...) ntfs_log_redirect(__FUNCTION__,__FILE__,__LINE__,NTFS_LOG_LEVEL_TRACE,NULL,__VA_ARGS__)
 #define ntfs_log_enter(...) ntfs_log_redirect(__FUNCTION__,__FILE__,__LINE__,NTFS_LOG_LEVEL_ENTER,NULL,__VA_ARGS__)
@@ -124,7 +124,7 @@ int ntfs_log_redirect(const char *function, const char *file, int line,
 #define ntfs_log_trace(...)do {} while (0)
 #define ntfs_log_enter(...)do {} while (0)
 #define ntfs_log_leave(...)do {} while (0)
-#endif /* DEBUG */
+#endif /* ENABLE_DEBUG */
 
 void ntfs_log_early_error(const char *format, ...)
                 __attribute__((format(printf, 1, 2)));

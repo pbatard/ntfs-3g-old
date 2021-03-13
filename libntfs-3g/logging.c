@@ -52,7 +52,7 @@
 #define PATH_SEP '/'
 #endif
 
-#ifdef DEBUG
+#ifdef ENABLE_DEBUG
 static int tab;
 #endif
 
@@ -80,7 +80,7 @@ struct ntfs_logging {
  * This struct controls all the logging within the library and tools.
  */
 static struct ntfs_logging ntfs_log = {
-#ifdef DEBUG
+#ifdef ENABLE_DEBUG
 	NTFS_LOG_LEVEL_DEBUG | NTFS_LOG_LEVEL_TRACE | NTFS_LOG_LEVEL_ENTER |
 	NTFS_LOG_LEVEL_LEAVE |
 #endif
@@ -88,7 +88,7 @@ static struct ntfs_logging ntfs_log = {
 	NTFS_LOG_LEVEL_ERROR | NTFS_LOG_LEVEL_PERROR | NTFS_LOG_LEVEL_CRITICAL |
 	NTFS_LOG_LEVEL_PROGRESS,
 	NTFS_LOG_FLAG_ONLYNAME,
-#ifdef DEBUG
+#ifdef ENABLE_DEBUG
 #ifdef UEFI_DRIVER
 	ntfs_log_handler_uefi
 #else
@@ -370,7 +370,7 @@ int ntfs_log_handler_syslog(const char *function  __attribute__((unused)),
 	char logbuf[LOG_LINE_LEN];
 	int ret, olderr = errno;
 
-#ifndef DEBUG
+#ifndef ENABLE_DEBUG
 	if ((level & NTFS_LOG_LEVEL_PERROR) && errno == ENOSPC)
 		return 1;
 #endif	
@@ -513,7 +513,7 @@ int ntfs_log_handler_uefi(const char* function __attribute__((unused)), const ch
 int ntfs_log_handler_fprintf(const char *function, const char *file,
 	int line, u32 level, void *data, const char *format, ntfs_va_list args)
 {
-#ifdef DEBUG
+#ifdef ENABLE_DEBUG
 	int i;
 #endif
 	int ret = 0;
@@ -524,7 +524,7 @@ int ntfs_log_handler_fprintf(const char *function, const char *file,
 		return 0;	/* If it's NULL, we can't do anything. */
 	stream = (FILE*)data;
 
-#ifdef DEBUG
+#ifdef ENABLE_DEBUG
 	if (level == NTFS_LOG_LEVEL_LEAVE) {
 		if (tab)
 			tab--;
@@ -556,7 +556,7 @@ int ntfs_log_handler_fprintf(const char *function, const char *file,
 	if (level & NTFS_LOG_LEVEL_PERROR)
 		ret += fprintf(stream, ": %s\n", strerror(olderr));
 
-#ifdef DEBUG
+#ifdef ENABLE_DEBUG
 	if (level == NTFS_LOG_LEVEL_ENTER)
 		tab++;
 #endif	
