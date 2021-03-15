@@ -949,6 +949,21 @@ static u32 ntfs_dir_entry_type(ntfs_inode *dir_ni, MFT_REF mref,
 	return (dt_type);
 }
 
+static s64 compute_pos(ntfs_inode* dir_ni, u8 ivcn_bits,
+	const INDEX_TYPE index_type, void* iu, INDEX_ENTRY* ie, u64 buf_pos)
+{
+	s64 pos;
+
+	/* Advance the position even if going to skip the entry. */
+	if (index_type == INDEX_TYPE_ALLOCATION)
+		pos = ((u8*)ie - (u8*)iu) + dir_ni->vol->mft_record_size +
+			(sle64_to_cpu(((INDEX_ALLOCATION*)iu)->index_block_vcn) << ivcn_bits);
+	else /* if (index_type == INDEX_TYPE_ROOT) */
+		pos = (u8*)ie - (u8*)iu;
+	pos |= buf_pos << 32;
+	return pos;
+}
+
 /**
  * ntfs_filldir - ntfs specific filldir method
  * @dir_ni:	ntfs inode of current directory
@@ -963,9 +978,8 @@ static u32 ntfs_dir_entry_type(ntfs_inode *dir_ni, MFT_REF mref,
  * Pass information specifying the current directory entry @ie to the @filldir
  * callback.
  */
-static int ntfs_filldir(ntfs_inode *dir_ni, s64 *pos, u8 ivcn_bits,
-		const INDEX_TYPE index_type, void* iu, INDEX_ENTRY *ie,
-		void *dirent, ntfs_filldir_t filldir)
+static int ntfs_filldir(ntfs_inode *dir_ni, s64 *pos,
+		INDEX_ENTRY *ie, void *dirent, ntfs_filldir_t filldir)
 {
 	FILE_NAME_ATTR *fn = &ie->key.file_name;
 	unsigned dt_type;
@@ -976,13 +990,6 @@ static int ntfs_filldir(ntfs_inode *dir_ni, s64 *pos, u8 ivcn_bits,
 
 	ntfs_log_trace("Entering.\n");
 	
-	/* Advance the position even if going to skip the entry. */
-	if (index_type == INDEX_TYPE_ALLOCATION)
-		*pos = (u8*)ie - (u8*)iu + (sle64_to_cpu(
-				((INDEX_ALLOCATION*)iu)->index_block_vcn) << ivcn_bits) +
-				dir_ni->vol->mft_record_size;
-	else /* if (index_type == INDEX_TYPE_ROOT) */
-		*pos = (u8*)ie - (u8*)iu;
 	mref = le64_to_cpu(ie->indexed_file);
 	metadata = (MREF(mref) != FILE_root) && (MREF(mref) < FILE_first_user);
 	/* Skip root directory self reference entry. */
@@ -1114,15 +1121,15 @@ err_out:
 int ntfs_readdir(ntfs_inode *dir_ni, s64 *pos,
 		void *dirent, ntfs_filldir_t filldir)
 {
-	s64 i_size, br, ia_pos, bmp_pos, ia_start;
+	s64 i_size, br, ia_pos, bmp_pos, ia_start, initial_pos;
 	ntfs_volume *vol;
-	ntfs_attr *ia_na, *bmp_na = NULL;
+	ntfs_attr *ia_na = NULL, *bmp_na = NULL;
 	ntfs_attr_search_ctx *ctx = NULL;
 	u8 *index_end, *bmp = NULL;
 	INDEX_ROOT *ir;
 	INDEX_ENTRY *ie;
 	INDEX_ALLOCATION *ia = NULL;
-	int rc, ir_pos, bmp_buf_size, bmp_buf_pos, eo;
+	int rc, ir_pos, bmp_buf_size, bmp_buf_pos = 0, eo, go_to_next_index = 0;
 	u32 index_block_size;
 	u8 index_block_size_bits, index_vcn_size_bits;
 
@@ -1159,16 +1166,16 @@ int ntfs_readdir(ntfs_inode *dir_ni, s64 *pos,
 	rc = 0;
 
 	/* Are we at end of dir yet? */
-	if (*pos >= i_size + vol->mft_record_size)
+	if (*pos < 0 || (*pos & 0xffffffff) >= i_size + vol->mft_record_size)
 		goto done;
 
 	/* Emulate . and .. for all directories. */
-	if (!*pos) {
+	if (*pos == 0) {
 		rc = filldir(dirent, dotdot, 1, FILE_NAME_POSIX, *pos,
 				MK_MREF(dir_ni->mft_no,
 				le16_to_cpu(dir_ni->mrec->sequence_number)),
 				NTFS_DT_DIR);
-		if (rc)
+		if (rc < 0)
 			goto err_out;
 		++*pos;
 	}
@@ -1181,9 +1188,11 @@ int ntfs_readdir(ntfs_inode *dir_ni, s64 *pos,
 			goto dir_err_out;
 		}
 
+		if (rc > 0)
+			goto done;
 		rc = filldir(dirent, dotdot, 2, FILE_NAME_POSIX, *pos,
 				parent_mref, NTFS_DT_DIR);
-		if (rc)
+		if (rc < 0)
 			goto err_out;
 		++*pos;
 	}
@@ -1231,12 +1240,22 @@ int ntfs_readdir(ntfs_inode *dir_ni, s64 *pos,
 	/* The first index entry. */
 	ie = (INDEX_ENTRY*)((u8*)&ir->index +
 			le32_to_cpu(ir->index.entries_offset));
+	/* Compute initial pos for the loop */
+	initial_pos = compute_pos(dir_ni, index_vcn_size_bits, INDEX_TYPE_ROOT, ir, ie, 0);
+	if (*pos == 2 || *pos == initial_pos) {
+		/* To ensure that pos passed to filldir is the same as the one returned */
+		*pos = initial_pos;
+	} else {
+		/* Get index entry from provided pos */
+		ie = (INDEX_ENTRY*)&((u8*)ir)[*pos];
+	}
+
 	/*
 	 * Loop until we exceed valid memory (corruption case) or until we
 	 * reach the last entry or until filldir tells us it has had enough
 	 * or signals an error (both covered by the rc test).
 	 */
-	for (;; ie = (INDEX_ENTRY*)((u8*)ie + le16_to_cpu(ie->length))) {
+	while (1) {
 		ntfs_log_debug("In index root, offset %d.\n", (int)((u8*)ie - (u8*)ir));
 		/* Bounds checks. */
 		if ((u8*)ie < (u8*)ctx->mrec || (u8*)ie +
@@ -1258,13 +1277,21 @@ int ntfs_readdir(ntfs_inode *dir_ni, s64 *pos,
 		 * Submit the directory entry to ntfs_filldir(), which will
 		 * invoke the filldir() callback as appropriate.
 		 */
-		rc = ntfs_filldir(dir_ni, pos, index_vcn_size_bits,
-				INDEX_TYPE_ROOT, ir, ie, dirent, filldir);
-		if (rc) {
+		if (rc > 0) {
+			ntfs_attr_put_search_ctx(ctx);
+			ctx = NULL;
+			goto done;
+		}
+		rc = ntfs_filldir(dir_ni, pos, ie, dirent, filldir);
+		if (rc < 0) {
 			ntfs_attr_put_search_ctx(ctx);
 			ctx = NULL;
 			goto err_out;
 		}
+
+		/* Move to next entry and update pos */
+		ie = (INDEX_ENTRY*)((u8*)ie + le16_to_cpu(ie->length));
+		*pos = compute_pos(dir_ni, index_vcn_size_bits, INDEX_TYPE_ROOT, ir, ie, 0);
 	}
 	ntfs_attr_put_search_ctx(ctx);
 	ctx = NULL;
@@ -1275,6 +1302,7 @@ int ntfs_readdir(ntfs_inode *dir_ni, s64 *pos,
 
 	/* Advance *pos to the beginning of the index allocation. */
 	*pos = vol->mft_record_size;
+	go_to_next_index = 1;
 
 skip_index_root:
 
@@ -1288,12 +1316,12 @@ skip_index_root:
 
 	bmp_na = ntfs_attr_open(dir_ni, AT_BITMAP, NTFS_INDEX_I30, 4);
 	if (!bmp_na) {
-		ntfs_log_perror("Failed to open index bitmap attribute");
+		ntfs_log_perror("Failed to open index bitmap attribute\n");
 		goto dir_err_out;
 	}
 
 	/* Get the offset into the index allocation attribute. */
-	ia_pos = *pos - vol->mft_record_size;
+	ia_pos = (*pos & 0xffffffff) - vol->mft_record_size;
 
 	bmp_pos = ia_pos >> index_block_size_bits;
 	if (bmp_pos >> 3 >= bmp_na->data_size) {
@@ -1315,7 +1343,15 @@ skip_index_root:
 		goto err_out;
 	}
 
-	bmp_buf_pos = 0;
+	/* We have to recover bmp_buf_pos */
+	bmp_buf_pos = *pos >> 32;
+
+	// Yeah, the problem is that unlike what happens with the goto,
+	// we always enter find_next_index_buffer on oneshot with bmp_buf_pos = 0
+	// whereas with the direct loop, we reenter the while with last bmp_buf_pos
+	// and the while condition (on continue) will work.
+	// We have to store the current bmp_buf_pos!!!
+
 	/* If the index block is not in use find the next one that is. */
 	while (!(bmp[bmp_buf_pos >> 3] & (1 << (bmp_buf_pos & 7)))) {
 find_next_index_buffer:
@@ -1339,6 +1375,8 @@ find_next_index_buffer:
 			goto err_out;
 		}
 	}
+//	ntfs_log_error("AFTER find_next_index_buffer: bmp_pos = %d, bmp_buf_pos = %d, pos = %llx\n",
+//		bmp_pos, bmp_buf_pos, *pos);
 
 	ntfs_log_debug("Handling index block 0x%llx.\n", (long long)bmp_pos);
 
@@ -1380,15 +1418,35 @@ find_next_index_buffer:
 				(unsigned long long)dir_ni->mft_no);
 		goto dir_err_out;
 	}
-	/* The first index entry. */
-	ie = (INDEX_ENTRY*)((u8*)&ia->index +
-			le32_to_cpu(ia->index.entries_offset));
+
+	/*
+	 * pos ((u8*)ie - (u8*)iu) is offset by:
+	 *   vol->mft_record_size + iu->index_block_vcn << ivcn_bits
+	 */
+
+	if (go_to_next_index) {
+		/* Move to the next index entry. */
+		ie = (INDEX_ENTRY*)((u8*)&ia->index + le32_to_cpu(ia->index.entries_offset));
+		/* Compute initial pos for the loop */
+		*pos = compute_pos(dir_ni, index_vcn_size_bits, INDEX_TYPE_ALLOCATION, ia, ie, bmp_buf_pos);
+//		ntfs_log_error("DIRECT: ie - ia = %llx, pos = %llx\n", (u8*)ie - (u8*)ia, *pos);
+//		ntfs_log_error("DIRECT: ia->index_block_vcn = %llx, index_vcn_size_bits = %x\n",
+//			((INDEX_ALLOCATION*)ia)->index_block_vcn, index_vcn_size_bits);
+	} else {
+		/* Compute ie from last pos */
+		ie = (INDEX_ENTRY*)&((u8*)ia)[(*pos & 0xffffffff) - vol->mft_record_size -
+			(sle64_to_cpu(((INDEX_ALLOCATION*)ia)->index_block_vcn) << index_vcn_size_bits)];
+//		ntfs_log_error("FROM POS: ie - ia = %llx\n", (u8*)ie - (u8*)ia);
+//		ntfs_log_error("FROM POS: ia->index_block_vcn = %llx, index_vcn_size_bits = %x\n",
+//			((INDEX_ALLOCATION*)ia)->index_block_vcn, index_vcn_size_bits);
+	}
+
 	/*
 	 * Loop until we exceed valid memory (corruption case) or until we
 	 * reach the last entry or until ntfs_filldir tells us it has had
 	 * enough or signals an error (both covered by the rc test).
 	 */
-	for (;; ie = (INDEX_ENTRY*)((u8*)ie + le16_to_cpu(ie->length))) {
+	while (1) {
 		ntfs_log_debug("In index allocation, offset 0x%llx.\n",
 				(long long)ia_start + ((u8*)ie - (u8*)ia));
 		/* Bounds checks. */
@@ -1401,8 +1459,9 @@ find_next_index_buffer:
 			goto dir_err_out;
 		}
 		/* The last entry cannot contain a name. */
-		if (ie->ie_flags & INDEX_ENTRY_END)
-			break;
+		go_to_next_index = (ie->ie_flags & INDEX_ENTRY_END);
+		if (go_to_next_index)
+			goto find_next_index_buffer;
 		
 		if (!le16_to_cpu(ie->length))
 			goto dir_err_out;
@@ -1414,15 +1473,19 @@ find_next_index_buffer:
 		 * Submit the directory entry to ntfs_filldir(), which will
 		 * invoke the filldir() callback as appropriate.
 		 */
-		rc = ntfs_filldir(dir_ni, pos, index_vcn_size_bits,
-				INDEX_TYPE_ALLOCATION, ia, ie, dirent, filldir);
-		if (rc)
+		if (rc > 0)
+			goto done;
+		rc = ntfs_filldir(dir_ni, pos, ie, dirent, filldir);
+		if (rc < 0)
 			goto err_out;
+
+		/* Move to next entry and update pos*/
+		ie = (INDEX_ENTRY*)((u8*)ie + le16_to_cpu(ie->length));
+		*pos = compute_pos(dir_ni, index_vcn_size_bits, INDEX_TYPE_ALLOCATION, ia, ie, bmp_buf_pos);
 	}
-	goto find_next_index_buffer;
 EOD:
-	/* We are finished, set *pos to EOD. */
-	*pos = i_size + vol->mft_record_size;
+	/* We are finished, set *pos to negative. */
+	*pos = -1;
 done:
 	free(ia);
 	free(bmp);
@@ -1963,14 +2026,14 @@ int ntfs_delete(ntfs_volume *vol, const char *pathname,
 search:
 	while (!(err = ntfs_attr_lookup(AT_FILE_NAME, AT_UNNAMED, 0,
 					CASE_SENSITIVE, 0, NULL, 0, actx))) {
-	#ifdef ENABLE_DEBUG
+	#ifdef DEBUG
 		char *s;
 	#endif
 		IGNORE_CASE_BOOL case_sensitive = IGNORE_CASE;
 
 		fn = (FILE_NAME_ATTR*)((u8*)actx->attr +
 				le16_to_cpu(actx->attr->value_offset));
-	#ifdef ENABLE_DEBUG
+	#ifdef DEBUG
 		s = ntfs_attr_name_get(fn->file_name, fn->file_name_length);
 		ntfs_log_trace("name: '%s'  type: %d  dos: %d  win32: %d  "
 			       "case: %d\n", s, fn->file_name_type,

@@ -634,7 +634,6 @@ NtfsFreeFile(EFI_NTFS_FILE* File)
 		return;
 	/* Only destroy a file that has no refs */
 	if (File->RefCount <= 0) {
-		FreePool(File->DirEntry);
 		FreePool(File->Path);
 		FreePool(File);
 	}
@@ -834,9 +833,10 @@ NtfsGetFileInfo(EFI_NTFS_FILE* File, EFI_FILE_INFO* Info, CONST UINT64 MRef, BOO
 EFI_STATUS
 NtfsReadDirectory(EFI_NTFS_FILE* File, NTFS_DIRHOOK Hook, VOID* HookData)
 {
-	s64 pos = 0;
+	if (File->DirPos == -1)
+		return EFI_END_OF_FILE;
 
-	if (ntfs_readdir(File->NtfsInode, &pos, HookData, Hook)) {
+	if (ntfs_readdir(File->NtfsInode, &File->DirPos, HookData, Hook)) {
 		PrintError(L"%a failed: %a\n", __FUNCTION__, strerror(errno));
 		return ErrnoToEfiStatus();
 	}

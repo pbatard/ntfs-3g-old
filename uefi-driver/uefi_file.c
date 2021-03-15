@@ -32,6 +32,12 @@
 #define BASE_FILE(Handle)   (RO_ACCESS(Handle) ? BASE_CR(Handle, EFI_NTFS_FILE, EfiFileRO) : \
                                                BASE_CR(Handle, EFI_NTFS_FILE, EfiFileRW))
 
+ /* Structure used with DirHook */
+typedef struct {
+	EFI_NTFS_FILE* Parent;
+	EFI_FILE_INFO* Info;
+} DIR_DATA;
+
 /**
  * Open file
  *
@@ -282,148 +288,46 @@ FileDelete(EFI_FILE_HANDLE This)
 	return Status;
 }
 
-/*
- * Directory listing is tricky because on one hand, UEFI wants repeated
- * Read() calls on a directory handle, that return a single directory
- * entry each, and on the other hand, ntfs-3g wants a single readdir()
- * call on a directory inode, that invokes a callback for each directory
- * entry. Thus, a basic way of processing dirs, by invoking readddir()
- * for each UEFI Read() call and then using the repeated callbacks to
- * match with the relevant entry, would turn out to be very wasteful as
- * we'd literally be invoking a full directory listing for every entry
- * with the end result that, if you were to list something like Windows'
- * System32 dir, that typically contains more than 3,000 entries, you'd
- * end up issuing 3,000+ *full* directory listings.
- *
- * In order to improve performance, we therefore implement a mechanism
- * that caches the directory listings we get from ntfs-3g, through a
- * two-pass callback system:
- * - The first pass counts the number of entries and determines the
- *   maximum filename size, so that we can allocate a properly sized
- *   array of EFI_FILE_INFO structures.
- * - The second pass fills the newly allocated array with the relevant
- *   data.
- * Then, when UEFI calls Read(), we just return the cached entry.
- *
- * While this of course requires additional memory, if we assume a max
- * filename length of about 64 characters, the overhead is of about 200
- * KB per 1000 directory entries, which we deem more than acceptable,
- * even for low memory UEFI systems.
- * 
- * Note that, for performance reasons, we do reuse the same cache for
- * all of the directory handles we serve, and, more importantly, that
- * the cache does not get updated until all handles have been closed.
- * For typical UEFI Shell usage, this is more than good enough. But if
- * you are using this driver in an application, please be mindful that
- * directory changes may not appear until that directory is reopened.
- */
-
 /**
- * First-pass DirHook: Count entries and find the max filename length.
+ * Process directory entries
  */
-static INT32
-DirHookCount(VOID* Data, CONST CHAR16* Name,
-	CONST INT32 NameLen, CONST INT32 NameType, CONST INT64 Pos,
-	CONST UINT64 MRef, CONST UINT32 DtType)
-{
-	EFI_NTFS_FILE* File = (EFI_NTFS_FILE*)Data;
-
-	/* Don't list any system files except root */
-	if (GetInodeNumber(MRef) < FILE_FIRST_USER && GetInodeNumber(MRef) != FILE_ROOT)
-		return 0;
-
-	File->DirEntryCount++;
-	File->DirEntrySize = MAX(File->DirEntrySize,
-		SIZE_OF_EFI_FILE_INFO + ((UINTN)NameLen + 1) * sizeof(CHAR16));
-	return 0;
-}
-
-/**
- * Second-pass DirHook: Fill the EFI_FILE_INFO cache array.
- */
-static INT32
-DirHookCache(VOID* Data, CONST CHAR16* Name,
+static INT32 DirHook(VOID* Data, CONST CHAR16* Name,
 	CONST INT32 NameLen, CONST INT32 NameType, CONST INT64 Pos,
 	CONST UINT64 MRef, CONST UINT32 DtType)
 {
 	EFI_STATUS Status;
-	EFI_FILE_INFO* Info;
-	EFI_NTFS_FILE* File = (EFI_NTFS_FILE*)Data;
-	UINT8* p = (UINT8*)File->DirEntry;
+	DIR_DATA* HookData = (DIR_DATA*)Data;
 
 	/* Don't list any system files except root */
 	if (GetInodeNumber(MRef) < FILE_FIRST_USER && GetInodeNumber(MRef) != FILE_ROOT)
 		return 0;
 
-	/* No overflow here since we are just computing the address */
-	Info = (EFI_FILE_INFO*) &p[File->DirPos * File->DirEntrySize];
+	/* Sanity check since the maximum size of an NTFS file name is 255 */
+	FS_ASSERT(NameLen < 256);
 
-	/*
-	 * Technically, it is possible for a new entry to have been added
-	 * between our first and second pass, in which case we may end up
-	 * with an array overflow. Protect ourselves against that.
-	 */
-	if (File->DirPos++ >= File->DirEntryCount) {
-		PrintError(L"Unexpected directory entry!");
+	if (HookData->Info->Size < ((UINTN)NameLen + 1) * sizeof(CHAR16)) {
+		NtfsSetErrno(EFI_BUFFER_TOO_SMALL);
 		return -1;
 	}
+	CopyMem(HookData->Info->FileName, Name, NameLen * sizeof(CHAR16));
+	HookData->Info->FileName[NameLen] = 0;
+	HookData->Info->Size = SIZE_OF_EFI_FILE_INFO + ((UINTN)NameLen + 1) * sizeof(CHAR16);
 
-	/* Also for safety, validate that NameLen still fits our records */
-	if (SIZE_OF_EFI_FILE_INFO + ((UINTN)NameLen + 1) * sizeof(CHAR16) > File->DirEntrySize) {
-		PrintError(L"Unexpected directory entry name length!");
-		/* We could just truncate the name, but something's amiss here */
-		return -1;
-	}
-
-	/* Copy the filename and set the size */
-	CopyMem(Info->FileName, Name, NameLen * sizeof(CHAR16));
-	Info->FileName[NameLen] = 0;
-	Info->Size = SIZE_OF_EFI_FILE_INFO + ((UINTN)NameLen + 1) * sizeof(CHAR16);
-
-	/*
-	 * Set the Info attributes we obtain from the inode.
-	 * DtType is 4 for directories.
-	 */
-	Status = NtfsGetFileInfo(File, Info, MRef, (DtType == 4));
+	/* Set the Info attributes we obtain from the inode */
+	Status = NtfsGetFileInfo(HookData->Parent, HookData->Info,
+		MRef, (DtType == 4));	/* DtType is 4 for directories */
 	if (EFI_ERROR(Status)) {
 		PrintStatusError(Status, L"Could not get directory entry info");
 		NtfsSetErrno(Status);
 		return -1;
 	}
 
-	return 0;
-}
-
-static EFI_STATUS
-FileReturnDirEntry(EFI_NTFS_FILE* File, UINTN* Len, VOID* Data)
-{
-	EFI_FILE_INFO* Info;
-	UINT8* p = (UINT8*)File->DirEntry;
-
-	/* End of lookup */
-	if (File->DirPos >= File->DirEntryCount) {
-		/* Note that we don't destroy the cache here */
-		*Len = 0;
-		return EFI_SUCCESS;
-	}
-
-
-	FS_ASSERT(File->DirPos < File->DirEntryCount);
-	Info = (EFI_FILE_INFO*)&p[File->DirPos * File->DirEntrySize];
-	FS_ASSERT(Info->Size <= SIZE_OF_EFI_FILE_INFO + 256 * sizeof(CHAR16));
-	if (*Len < Info->Size)
-		return EFI_BUFFER_TOO_SMALL;
-
-
-	CopyMem(Data, Info, Info->Size);
-	*Len = Info->Size;
-	File->DirPos++;
-
-	return EFI_SUCCESS;
+	/* One shot */
+	return 1;
 }
 
 /**
- * Cache directory entries by calling NtfsReadDirectory() twice.
+ * Read directory entry
  *
  * @v file			EFI file
  * @v Len			Length to read
@@ -431,40 +335,24 @@ FileReturnDirEntry(EFI_NTFS_FILE* File, UINTN* Len, VOID* Data)
  * @ret Status		EFI status code
  */
 static EFI_STATUS
-FileReadDirCache(EFI_NTFS_FILE* File)
+FileReadDir(EFI_NTFS_FILE* File, UINTN* Len, VOID* Data)
 {
+	/* File->DirIndex is used to identify the entry we should look for */
+	DIR_DATA HookData = { File, (EFI_FILE_INFO*)Data };
 	EFI_STATUS Status;
 
-	/* First pass: Count entries and and determine max filename length */
-	File->DirEntryCount = 0;
-	File->DirEntrySize = 0;
-	Status = NtfsReadDirectory(File, DirHookCount, File);
+	HookData.Info->Size = *Len;
+	Status = NtfsReadDirectory(File, DirHook, &HookData);
 	if (EFI_ERROR(Status)) {
-		PrintStatusError(Status, L"Directory listing pass 1 failed\n");
+		if (Status == EFI_END_OF_FILE) {
+			*Len = 0;
+			return EFI_SUCCESS;
+		}
+		PrintStatusError(Status, L"Directory listing failed");
 		return Status;
 	}
 
-	/* Sanity check since the maximum size of an NTFS file name is 255 */
-	FS_ASSERT(File->DirEntrySize <= SIZE_OF_EFI_FILE_INFO + 256 * sizeof(CHAR16));
-
-	File->DirEntry = AllocatePool(File->DirEntryCount * File->DirEntrySize);
-	if (File->DirEntry == NULL) {
-		Status = EFI_OUT_OF_RESOURCES;
-		PrintStatusError(Status, L"Directory listing failed\n");
-		return Status;
-	}
-
-	/* Second pass: Populate the directory entries */
-	Status = NtfsReadDirectory(File, DirHookCache, File);
-	if (EFI_ERROR(Status)) {
-		PrintStatusError(Status, L"Directory listing pass 2 failed\n");
-		return Status;
-	}
-
-	PrintExtra(L"Cached %d directory entries\n", File->DirEntryCount);
-
-	/* Must reset the pos */
-	File->DirPos = 0;
+	*Len = (UINTN)HookData.Info->Size;
 	return EFI_SUCCESS;
 }
 
@@ -479,7 +367,6 @@ FileReadDirCache(EFI_NTFS_FILE* File)
 EFI_STATUS EFIAPI
 FileRead(EFI_FILE_HANDLE This, UINTN* Len, VOID* Data)
 {
-	EFI_STATUS Status;
 	EFI_NTFS_FILE* File = BASE_FILE(This);
 
 	PrintExtra(L"Read(" PERCENT_P L"|'%s', %d) %s\n", (UINTN)This, File->Path,
@@ -489,19 +376,8 @@ FileRead(EFI_FILE_HANDLE This, UINTN* Len, VOID* Data)
 		return EFI_DEVICE_ERROR;
 
 	/* If this is a directory, then fetch the directory entries */
-	if (File->IsDir) {
-		/*
-		 * For efficiency, reuse the cache if already populated.
-		 * However, new entries are not listed until the dir is reopened.
-		 */
-		if (File->DirEntry == NULL) {
-			FS_ASSERT(File->DirPos == 0);
-			Status = FileReadDirCache(File);
-			if (EFI_ERROR(Status))
-				return Status;
-		}
-		return FileReturnDirEntry(File, Len, Data);
-	}
+	if (File->IsDir)
+		return FileReadDir(File, Len, Data);
 
 	return NtfsReadFile(File, Data, Len);
 }
