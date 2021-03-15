@@ -23,6 +23,15 @@
 #include "uefi_logging.h"
 #include "uefi_support.h"
 
+/*
+ * Per the comment in the EFI_NTFS_FILE typedef, we use the address
+ * of a file handle to determine whether it iss opened read-only or
+ * read/write. The following two macros also help us with that.
+ */
+#define RO_ACCESS(Handle)   (((EFI_NTFS_FILE*)Handle)->DetectRO == (UINTN)-1)
+#define BASE_FILE(Handle)   (RO_ACCESS(Handle) ? BASE_CR(Handle, EFI_NTFS_FILE, EfiFileRO) : \
+                                               BASE_CR(Handle, EFI_NTFS_FILE, EfiFileRW))
+
 /**
  * Open file
  *
@@ -38,13 +47,13 @@ FileOpen(EFI_FILE_HANDLE This, EFI_FILE_HANDLE* New,
 	CHAR16* Name, UINT64 Mode, UINT64 Attributes)
 {
 	EFI_STATUS Status;
-	EFI_NTFS_FILE* File = BASE_CR(This, EFI_NTFS_FILE, EfiFile);
+	EFI_NTFS_FILE* File = BASE_FILE(This);
 	EFI_NTFS_FILE* NewFile = NULL;
 	CHAR16* Path = NULL;
 	INTN i, Len;
 
-	PrintInfo(L"Open(" PERCENT_P L"%s, \"%s\", Mode %llx)\n", (UINTN)This,
-		File->IsRoot ? L" <ROOT>" : L"", Name, Mode);
+	PrintInfo(L"Open(" PERCENT_P L"%s, \"%s\", Mode %llx, %s)\n", (UINTN)This,
+		File->IsRoot ? L" <ROOT>" : L"", Name, Mode, RO_ACCESS(This) ? L"RO" : L"RW");
 
 	if (NtfsIsVolumeReadOnly(File->FileSystem->NtfsVolume) && (Mode != EFI_FILE_MODE_READ)) {
 		PrintInfo(L"Invalid mode for read-only media\n", Name);
@@ -61,6 +70,19 @@ FileOpen(EFI_FILE_HANDLE This, EFI_FILE_HANDLE* New,
 		return EFI_NOT_FOUND;
 	}
 
+	/*
+	 * Per UEFI specs: "The only valid combinations that a file may
+	 * be opened with are: Read, Read/Write, or Create/Read/Write."
+	 */
+	switch (Mode) {
+	case (EFI_FILE_MODE_READ):
+	case (EFI_FILE_MODE_READ | EFI_FILE_MODE_WRITE):
+	case (EFI_FILE_MODE_CREATE | EFI_FILE_MODE_READ | EFI_FILE_MODE_WRITE):
+		break;
+	default:
+		return EFI_INVALID_PARAMETER;
+	}
+
 	/* Prevent the creation of files named '', '.' or '..' */
 	if ((Mode & EFI_FILE_MODE_CREATE) && (
 		(*Name == 0) || (StrCmp(Name, L".") == 0) ||
@@ -73,7 +95,8 @@ FileOpen(EFI_FILE_HANDLE This, EFI_FILE_HANDLE* New,
 		File->RefCount++;
 		File->FileSystem->TotalRefCount++;
 		PrintExtra(L"TotalRefCount = %d\n", File->FileSystem->TotalRefCount);
-		*New = This;
+		/* Return current handle, with the proper access mode */
+		*New = (Mode & EFI_FILE_MODE_WRITE) ? &File->EfiFileRW : &File->EfiFileRO;
 		PrintInfo(L"  RET: " PERCENT_P L"\n", (UINTN)*New);
 		return EFI_SUCCESS;
 	}
@@ -153,8 +176,8 @@ FileOpen(EFI_FILE_HANDLE This, EFI_FILE_HANDLE* New,
 	NewFile->RefCount++;
 	File->FileSystem->TotalRefCount++;
 	PrintExtra(L"TotalRefCount = %d\n", File->FileSystem->TotalRefCount);
-	*New = &NewFile->EfiFile;
-
+	/* Return a different handle according to the desired file mode */
+	*New = (Mode & EFI_FILE_MODE_WRITE) ? &NewFile->EfiFileRW : &NewFile->EfiFileRO;
 	PrintInfo(L"  RET: " PERCENT_P L"\n", (UINTN)*New);
 	Status = EFI_SUCCESS;
 
@@ -184,7 +207,7 @@ FileOpenEx(EFI_FILE_HANDLE This, EFI_FILE_HANDLE* New, CHAR16* Name,
 EFI_STATUS EFIAPI
 FileClose(EFI_FILE_HANDLE This)
 {
-	EFI_NTFS_FILE* File = BASE_CR(This, EFI_NTFS_FILE, EfiFile);
+	EFI_NTFS_FILE* File = BASE_FILE(This);
 	/* Keep a pointer to the FS since we're going to delete File */
 	EFI_FS* FileSystem = File->FileSystem;
 
@@ -222,7 +245,7 @@ EFI_STATUS EFIAPI
 FileDelete(EFI_FILE_HANDLE This)
 {
 	EFI_STATUS Status;
-	EFI_NTFS_FILE* File = BASE_CR(This, EFI_NTFS_FILE, EfiFile);
+	EFI_NTFS_FILE* File = BASE_FILE(This);
 
 	/* Keep a pointer to the FS since we're going to delete File */
 	EFI_FS* FileSystem = File->FileSystem;
@@ -457,7 +480,7 @@ EFI_STATUS EFIAPI
 FileRead(EFI_FILE_HANDLE This, UINTN* Len, VOID* Data)
 {
 	EFI_STATUS Status;
-	EFI_NTFS_FILE* File = BASE_CR(This, EFI_NTFS_FILE, EfiFile);
+	EFI_NTFS_FILE* File = BASE_FILE(This);
 
 	PrintExtra(L"Read(" PERCENT_P L"|'%s', %d) %s\n", (UINTN)This, File->Path,
 		*Len, File->IsDir ? L"<DIR>" : L"");
@@ -501,13 +524,16 @@ FileReadEx(IN EFI_FILE_PROTOCOL *This, IN OUT EFI_FILE_IO_TOKEN *Token)
 EFI_STATUS EFIAPI
 FileWrite(EFI_FILE_HANDLE This, UINTN* Len, VOID* Data)
 {
-	EFI_NTFS_FILE* File = BASE_CR(This, EFI_NTFS_FILE, EfiFile);
+	EFI_NTFS_FILE* File = BASE_FILE(This);
 
 	PrintExtra(L"Write(" PERCENT_P L"|'%s', %d) %s\n", (UINTN)This, File->Path,
 		*Len, File->IsDir ? L"<DIR>" : L"");
 
 	if (File->NtfsInode == NULL)
 		return EFI_DEVICE_ERROR;
+
+	if (RO_ACCESS(This))
+		return EFI_ACCESS_DENIED;
 
 	if (NtfsIsVolumeReadOnly(File->FileSystem->NtfsVolume))
 		return EFI_WRITE_PROTECTED;
@@ -536,7 +562,7 @@ FileWriteEx(IN EFI_FILE_PROTOCOL* This, EFI_FILE_IO_TOKEN* Token)
 EFI_STATUS EFIAPI
 FileSetPosition(EFI_FILE_HANDLE This, UINT64 Position)
 {
-	EFI_NTFS_FILE* File = BASE_CR(This, EFI_NTFS_FILE, EfiFile);
+	EFI_NTFS_FILE* File = BASE_FILE(This);
 	UINT64 FileSize;
 
 	PrintInfo(L"SetPosition(" PERCENT_P L"|'%s', %lld) %s\n", (UINTN) This,
@@ -581,7 +607,7 @@ FileSetPosition(EFI_FILE_HANDLE This, UINT64 Position)
 EFI_STATUS EFIAPI
 FileGetPosition(EFI_FILE_HANDLE This, UINT64* Position)
 {
-	EFI_NTFS_FILE* File = BASE_CR(This, EFI_NTFS_FILE, EfiFile);
+	EFI_NTFS_FILE* File = BASE_FILE(This);
 
 	PrintInfo(L"GetPosition(" PERCENT_P L"|'%s', %lld)\n", (UINTN) This, File->Path);
 
@@ -609,7 +635,7 @@ EFI_STATUS EFIAPI
 FileGetInfo(EFI_FILE_HANDLE This, EFI_GUID* Type, UINTN* Len, VOID* Data)
 {
 	EFI_STATUS Status;
-	EFI_NTFS_FILE* File = BASE_CR(This, EFI_NTFS_FILE, EfiFile);
+	EFI_NTFS_FILE* File = BASE_FILE(This);
 	EFI_FILE_INFO* Info = (EFI_FILE_INFO*)Data;
 	EFI_FILE_SYSTEM_INFO *FSInfo = (EFI_FILE_SYSTEM_INFO*)Data;
 	EFI_FILE_SYSTEM_VOLUME_LABEL *VLInfo = (EFI_FILE_SYSTEM_VOLUME_LABEL*)Data;
@@ -734,7 +760,7 @@ EFI_STATUS EFIAPI
 FileSetInfo(EFI_FILE_HANDLE This, EFI_GUID* Type, UINTN Len, VOID* Data)
 {
 	EFI_STATUS Status;
-	EFI_NTFS_FILE* File = BASE_CR(This, EFI_NTFS_FILE, EfiFile);
+	EFI_NTFS_FILE* File = BASE_FILE(This);
 	EFI_FILE_INFO* Info = (EFI_FILE_INFO*)Data;
 	EFI_FILE_SYSTEM_INFO* FSInfo = (EFI_FILE_SYSTEM_INFO*)Data;
 	EFI_FILE_SYSTEM_VOLUME_LABEL* VLInfo = (EFI_FILE_SYSTEM_VOLUME_LABEL*)Data;
@@ -753,7 +779,9 @@ FileSetInfo(EFI_FILE_HANDLE This, EFI_GUID* Type, UINTN Len, VOID* Data)
 		if ((Len < SIZE_OF_EFI_FILE_INFO + sizeof(CHAR16)) ||
 			(StrSize(Info->FileName) > Len - SIZE_OF_EFI_FILE_INFO))
 			return EFI_BAD_BUFFER_SIZE;
-		Status = NtfsSetFileInfo(File, Info);
+		if (Info->Attribute & ~EFI_FILE_VALID_ATTR)
+			return EFI_INVALID_PARAMETER;
+		Status = NtfsSetFileInfo(File, Info, RO_ACCESS(This));
 		if (EFI_ERROR(Status))
 			PrintStatusError(Status, L"Could not set file info");
 		return Status;
@@ -792,12 +820,15 @@ FileSetInfo(EFI_FILE_HANDLE This, EFI_GUID* Type, UINTN Len, VOID* Data)
 EFI_STATUS EFIAPI
 FileFlush(EFI_FILE_HANDLE This)
 {
-	EFI_NTFS_FILE* File = BASE_CR(This, EFI_NTFS_FILE, EfiFile);
+	EFI_NTFS_FILE* File = BASE_FILE(This);
 
 	PrintInfo(L"Flush(" PERCENT_P L"|'%s')\n", (UINTN) This, File->Path);
 
 	if (File->NtfsInode == NULL)
 		return EFI_DEVICE_ERROR;
+
+	if (RO_ACCESS(This))
+		return EFI_ACCESS_DENIED;
 
 	if (NtfsIsVolumeReadOnly(File->FileSystem->NtfsVolume))
 		return EFI_SUCCESS;

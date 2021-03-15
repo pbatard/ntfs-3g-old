@@ -88,23 +88,11 @@ command or a UEFI application execution).
 COMPLIANCE
 ==========
 
-The UEFI NTFS driver should mostly be compliant with the UEFI specifications,
-especially with sections 13.4 and 13.5 from version 2.8 Errata A of the specs.
+This UEFI NTFS driver should comply with the UEFI specifications, especially
+with sections 13.4 and 13.5 from version 2.8 Errata A of the specs.
 
-The only deviations from the specs are:
-
-* The EFI_FILE_MODE_WRITE and EFI_FILE_MODE_READ attributes of the OpenMode
-  parameter from EFI_FILE_PROTOCOL.Open() are always ignored, and all files or
-  directories are opened as if both EFI_FILE_MODE_WRITE and EFI_FILE_MODE_READ
-  have been set by the caller.
-  This still does not mean that the driver will let you alter read-only files
-  or volumes, as this only pertains to the desired access mode (and not the
-  effective one). However, UEFI status errors, such as EFI_ACCESS_DENIED, that
-  are meant to be returned when a handle that was opened for read-only access
-  is used in non read-only operations, will not be issued by this driver.
-
-* Directory listings are cached and the initial cached content is reused until
-  the last handle of a directory is closed. This is enacted for performance 
-  reasons but it also means that, if you have a directory handle open, and
-  create/delete entries in that directory, you will not see your changes until
-  you close that handle and reopen the directory.
+The one element you should be aware of is that directory listings are cached
+with the initial cached content being reused until the last handle is closed.
+This is enacted for performance reasons but it also means that, if you have a
+directory handle open, and create/delete entries in that directory, you will
+not see your changes until you close that handle and reopen the directory.
