@@ -1096,6 +1096,8 @@ err_out:
  * supplied by the caller.
  *
  * Return 0 on success or -1 on error with errno set to the error code.
+ * On success, the value at address 'pos' gets updated to the position of the
+ * next entry in the directory or -1 if no more entries are available.
  *
  * Note: Index blocks are parsed in ascending vcn order, from which follows
  * that the directory entries are not returned sorted.
@@ -1157,7 +1159,7 @@ int ntfs_readdir(ntfs_inode *dir_ni, s64 *pos,
 				MK_MREF(dir_ni->mft_no,
 				le16_to_cpu(dir_ni->mrec->sequence_number)),
 				NTFS_DT_DIR);
-		if (rc)
+		if (rc < 0)
 			goto err_out;
 		++*pos;
 	}
@@ -1170,9 +1172,11 @@ int ntfs_readdir(ntfs_inode *dir_ni, s64 *pos,
 			goto dir_err_out;
 		}
 
+		if (rc > 0)
+			goto done;
 		rc = filldir(dirent, dotdot, 2, FILE_NAME_POSIX, *pos,
 				parent_mref, NTFS_DT_DIR);
-		if (rc)
+		if (rc < 0)
 			goto err_out;
 		++*pos;
 	}
@@ -1252,8 +1256,13 @@ int ntfs_readdir(ntfs_inode *dir_ni, s64 *pos,
 		 * Submit the directory entry to ntfs_filldir(), which will
 		 * invoke the filldir() callback as appropriate.
 		 */
+		if (rc > 0) {
+			ntfs_attr_put_search_ctx(ctx);
+			ctx = NULL;
+			goto done;
+		}
 		rc = ntfs_filldir(dir_ni, pos, ie, dirent, filldir);
-		if (rc) {
+		if (rc < 0) {
 			ntfs_attr_put_search_ctx(ctx);
 			ctx = NULL;
 			goto err_out;
@@ -1401,8 +1410,10 @@ find_next_index_buffer:
 		 * Submit the directory entry to ntfs_filldir(), which will
 		 * invoke the filldir() callback as appropriate.
 		 */
+		if (rc > 0)
+			goto done;
 		rc = ntfs_filldir(dir_ni, pos, ie, dirent, filldir);
-		if (rc)
+		if (rc < 0)
 			goto err_out;
 	}
 	goto find_next_index_buffer;
