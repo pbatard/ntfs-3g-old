@@ -78,7 +78,7 @@ int ntfs_mst_post_read_fixup_warn(NTFS_RECORD *b, const u32 size,
 		errno = EINVAL;
 		if (warn) {
 			ntfs_log_perror("%s: magic: 0x%08lx  size: %ld "
-					"  usa_ofs: %d  usa_count: %u",
+					"  usa_ofs: %d  usa_count: %u\n",
 					 __FUNCTION__,
 					(long)le32_to_cpu(*(le32 *)b),
 					(long)size, (int)usa_ofs,

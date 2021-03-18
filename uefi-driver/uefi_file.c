@@ -32,7 +32,7 @@
 #define BASE_FILE(Handle)   (RO_ACCESS(Handle) ? BASE_CR(Handle, EFI_NTFS_FILE, EfiFileRO) : \
                                                BASE_CR(Handle, EFI_NTFS_FILE, EfiFileRW))
 
- /* Structure used with DirHook */
+/* Structure used with DirHook */
 typedef struct {
 	EFI_NTFS_FILE* Parent;
 	EFI_FILE_INFO* Info;
@@ -322,6 +322,8 @@ static INT32 DirHook(VOID* Data, CONST CHAR16* Name,
 		return -1;
 	}
 
+//	Print(L"PRO '%s' (%d) [REF:%lld, POS:%llx] \n", Name, NameLen, GetInodeNumber(MRef), Pos);
+
 	/* One shot */
 	return 1;
 }
@@ -337,7 +339,6 @@ static INT32 DirHook(VOID* Data, CONST CHAR16* Name,
 static EFI_STATUS
 FileReadDir(EFI_NTFS_FILE* File, UINTN* Len, VOID* Data)
 {
-	/* File->DirIndex is used to identify the entry we should look for */
 	DIR_DATA HookData = { File, (EFI_FILE_INFO*)Data };
 	EFI_STATUS Status;
 

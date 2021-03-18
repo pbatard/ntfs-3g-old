@@ -30,7 +30,7 @@ Print_t* PrintTable[] = { &PrintError, &PrintWarning, &PrintInfo,
 		&PrintDebug, &PrintExtra };
 
 /* Global driver verbosity level */
-UINTN LogLevel = DEFAULT_LOGLEVEL;
+UINTN LogLevel = FS_LOGLEVEL_WARNING; // DEFAULT_LOGLEVEL;
 
 /**
  * Print status

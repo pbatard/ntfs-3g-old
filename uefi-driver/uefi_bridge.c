@@ -28,19 +28,31 @@
 #include "unistr.h"
 #include "logging.h"
 #include "dir.h"
-#include "cache.h"
 
 #include "uefi_driver.h"
 #include "uefi_bridge.h"
 #include "uefi_logging.h"
 #include "uefi_support.h"
 
-#define IS_DIR(ni)      (((ntfs_inode*)(ni))->mrec->flags & MFT_RECORD_IS_DIRECTORY)
-#define IS_DIRTY(ni)    (NInoDirty((ntfs_inode*)(ni)) || NInoAttrListDirty((ntfs_inode*)(ni)))
-
+ /* Not all platforms have this errno */
 #ifndef ENOMEDIUM
 #define ENOMEDIUM 159
 #endif
+
+#define IS_DIR(ni)      (((ntfs_inode*)(ni))->mrec->flags & MFT_RECORD_IS_DIRECTORY)
+#define IS_DIRTY(ni)    (NInoDirty((ntfs_inode*)(ni)) || NInoAttrListDirty((ntfs_inode*)(ni)))
+
+static inline int _to_utf8(CONST CHAR16* Src, char** dst, char* function)
+{
+	/* ntfs_ucstombs() can be used to convert to UTF-8 */
+	int sz = ntfs_ucstombs(Src, SafeStrLen(Src), dst, 0);
+	if (sz <= 0)
+		PrintError(L"%a failed to convert '%s': %a\n",
+			function, Src, strerror(errno));
+	return sz;
+}
+
+#define to_utf8(Src, dst) _to_utf8(Src, dst, __FUNCTION__)
 
 /*
  * Convert an errno to an EFI_STATUS code. Adapted from:
@@ -208,21 +220,6 @@ VOID NtfsSetErrno(EFI_STATUS Status)
 		errno = EFAULT;
 	}
 }
-
-/*
- * Wrapper over ntfs_ucstombs() for UTF8 conversion
- */
-static inline int _to_utf8(CONST CHAR16* Src, char** dst, char* function)
-{
-	/* ntfs_ucstombs() can be used to convert to UTF-8 */
-	int sz = ntfs_ucstombs(Src, SafeStrLen(Src), dst, 0);
-	if (sz <= 0)
-		PrintError(L"%a failed to convert '%s': %a\n",
-			function, Src, strerror(errno));
-	return sz;
-}
-
-#define to_utf8(Src, dst) _to_utf8(Src, dst, __FUNCTION__)
 
 /*
  * Compute an EFI_TIME representation of an ntfs_time field
@@ -516,7 +513,7 @@ NtfsMountVolume(EFI_FS* FileSystem)
 	ntfs_log_set_handler(ntfs_log_handler_uefi);
 
 	vol = ntfs_mount(device, flags);
-	FreePool(device);
+	free(device);
 
 	/* Detect error conditions */
 	if (vol == NULL) {
@@ -710,6 +707,23 @@ NtfsCloseFile(EFI_NTFS_FILE* File)
 }
 
 /*
+ * Read the content of an existing directory
+ */
+EFI_STATUS
+NtfsReadDirectory(EFI_NTFS_FILE* File, NTFS_DIRHOOK Hook, VOID* HookData)
+{
+	if (File->DirPos == -1)
+		return EFI_END_OF_FILE;
+
+	if (ntfs_readdir(File->NtfsInode, &File->DirPos, HookData, Hook)) {
+		PrintError(L"%a failed: %a\n", __FUNCTION__, strerror(errno));
+		return ErrnoToEfiStatus();
+	}
+
+	return EFI_SUCCESS;
+}
+
+/*
  * Read from an open file into a data buffer
  */
 EFI_STATUS
@@ -728,7 +742,7 @@ NtfsReadFile(EFI_NTFS_FILE* File, VOID* Data, UINTN* Len)
 
 	max_read = na->data_size;
 	if (File->Offset + size > max_read) {
-		if (File->Offset >= max_read) {
+		if (File->Offset > max_read) {
 			/* Per UEFI specs */
 			ntfs_attr_close(na);
 			return EFI_DEVICE_ERROR;
@@ -840,6 +854,8 @@ NtfsReadDirectory(EFI_NTFS_FILE* File, NTFS_DIRHOOK Hook, VOID* HookData)
 		PrintError(L"%a failed: %a\n", __FUNCTION__, strerror(errno));
 		return ErrnoToEfiStatus();
 	}
+
+//	Print(L"NEXT: %llx\n", File->DirPos);
 
 	return EFI_SUCCESS;
 }

@@ -25,13 +25,13 @@
 #ifndef _MSC_VER
 #if !defined(__GNUC__) || (__GNUC__ < 5)
 #error gcc 5.0 or later is required for the compilation of this driver.
-#endif
+#endif /* _MSC_VER */
 
 /* Having GNU_EFI_USE_MS_ABI avoids the need for uefi_call_wrapper() */
 #if defined(_GNU_EFI) & !defined(GNU_EFI_USE_MS_ABI)
 #error gnu-efi, with option GNU_EFI_USE_MS_ABI, is required for the compilation of this driver.
 #endif
-#endif /* _MSC_VER */
+#endif /* _GNU_EFI & !GNU_EFI_USE_MS_ABI */
 
 /* Some compilers complain when using %llx to print a pointer on 32-bit */
 #if defined(_M_ARM64) || defined(__aarch64__) || defined (_M_X64) || defined(__x86_64__)
