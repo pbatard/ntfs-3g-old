@@ -16,6 +16,7 @@
   OUTPUT_DIRECTORY               = Build
   BUILD_TARGETS                  = DEBUG|RELEASE|NOOPT
   SKUID_IDENTIFIER               = DEFAULT
+  DEFINE FORCE_READONLY          = FALSE
 
 [BuildOptions]
   GCC:RELEASE_*_*_CC_FLAGS       = -DMDEPKG_NDEBUG
@@ -26,6 +27,9 @@
 !endif
 !ifdef COMMIT_INFO
   *_*_*_CC_FLAGS                 = -DCOMMIT_INFO=$(COMMIT_INFO)
+!endif
+!if $(FORCE_READONLY) == TRUE
+  *_*_*_CC_FLAGS                 = -DFORCE_READONLY
 !endif
 
 [LibraryClasses]
