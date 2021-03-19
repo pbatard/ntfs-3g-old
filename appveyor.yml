@@ -1,0 +1,42 @@
+image: Ubuntu2004
+
+skip_non_tags: true
+
+install:
+  sh: |-
+      sudo apt-get update -qq
+      sudo update-alternatives --remove-all gcc
+      sudo update-alternatives --remove-all g++
+      sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-9 90 --slave /usr/bin/g++ g++ /usr/bin/g++-9
+      sudo -E apt-get install -y gcc-9-multilib gcc-9-aarch64-linux-gnu gcc-9-arm-linux-gnueabi python3-distutils nasm uuid-dev
+      # Trying to have x86_32, x86_64, aarch64 and arm work together is a massive PITA.
+      # See https://bugs.launchpad.net/ubuntu/+source/gcc-defaults/+bug/1300211
+      sudo ln -s /usr/include/x86_64-linux-gnu/asm/ /usr/local/include/asm
+      sudo ln -s /usr/bin/aarch64-linux-gnu-gcc-9 /usr/bin/aarch64-linux-gnu-gcc
+      sudo ln -s /usr/bin/aarch64-linux-gnu-gcc-ar-9 /usr/bin/aarch64-linux-gnu-gcc-ar
+      sudo ln -s /usr/bin/arm-linux-gnueabi-gcc-9 /usr/bin/arm-linux-gnueabi-gcc
+      sudo ln -s /usr/bin/arm-linux-gnueabi-gcc-ar-9 /usr/bin/arm-linux-gnueabi-gcc-ar
+      git clone --recursive https://github.com/tianocore/edk2.git
+
+before_build:
+  sh: make -C edk2/BaseTools
+
+build_script:
+  # We must to invoke a script as EDK2's edksetup.sh won't work otherwise
+  sh: ./appveyor.sh
+
+after_build:
+  sh: sha256sum *.efi
+
+artifacts:
+  - path: '*.efi'
+
+deploy:
+  release: $(APPVEYOR_REPO_TAG_NAME)
+  description: UEFI NTFS drivers v$(APPVEYOR_REPO_TAG_NAME)
+  provider: GitHub
+  auth_token:
+    secure: w5YuQOim+G+U7FxxrL0BH6t0trCWKCs9DMZlF4xqF2XGC6SymzwaJrPWrKeeJHPK
+  artifact: /.*\.efi/     
+  draft: false
+  prerelease: false
