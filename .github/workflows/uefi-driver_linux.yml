@@ -1,0 +1,58 @@
+name: UEFI driver - Linux (gcc/EDK2) build
+
+on:
+  push:
+    branches: [ uefi-driver ]
+  pull_request:
+    branches: [ uefi-driver ]
+
+env:
+  DRIVER_VERSION: Test
+  BUILD_TYPE: RELEASE
+  GCC5_ARM_PREFIX: arm-linux-gnueabi-
+  GCC5_AARCH64_PREFIX: aarch64-linux-gnu-
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        include:
+        - TARGET_TYPE: x64
+          TARGET_ARCH: X64
+          TARGET_PKGS: python3-distutils nasm uuid-dev
+        - TARGET_TYPE: ia32
+          TARGET_ARCH: IA32
+          TARGET_PKGS: gcc-multilib python3-distutils nasm uuid-dev
+        - TARGET_TYPE: aa64
+          TARGET_ARCH: AARCH64
+          TARGET_PKGS: gcc-aarch64-linux-gnu python3-distutils uuid-dev
+        - TARGET_TYPE: arm
+          TARGET_ARCH: ARM
+          TARGET_PKGS: gcc-arm-linux-gnueabi python3-distutils uuid-dev
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Setup Linux environment
+      run: sudo apt install -y ${{matrix.TARGET_PKGS}}
+    - name: Setup EDK2
+      run: |
+        git clone --recursive https://github.com/tianocore/edk2.git
+        make -C edk2/BaseTools
+    - name: Build UEFI drivers
+      run: |
+        export WORKSPACE=$PWD
+        export PACKAGES_PATH=$WORKSPACE:$WORKSPACE/edk2
+        source edk2/edksetup.sh
+        build -a ${{matrix.TARGET_ARCH}} -b ${BUILD_TYPE} -t GCC5 -p uefi-driver.dsc -D FORCE_READONLY -D COMMIT_INFO=${GITHUB_SHA:0:8} -D DRIVER_VERSION=${DRIVER_VERSION}
+        mv $WORKSPACE/Build/${BUILD_TYPE}_GCC5/${{matrix.TARGET_ARCH}}/ntfs.efi $WORKSPACE/ntfs_${{matrix.TARGET_TYPE}}_ro.efi
+        build -a ${{matrix.TARGET_ARCH}} -b ${BUILD_TYPE} -t GCC5 -p uefi-driver.dsc -D COMMIT_INFO=${GITHUB_SHA:0:8} -D DRIVER_VERSION=${DRIVER_VERSION}
+        mv $WORKSPACE/Build/${BUILD_TYPE}_GCC5/${{matrix.TARGET_ARCH}}/ntfs.efi $WORKSPACE/ntfs_${{matrix.TARGET_TYPE}}.efi
+    - name: Display SHA-256
+      run: sha256sum *.efi
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v2
+      with:
+        name: uefi-drivers
+        path: ./*.efi

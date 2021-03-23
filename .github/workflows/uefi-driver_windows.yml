@@ -1,0 +1,32 @@
+name: UEFI driver - Windows (MSVC/gnu-efi) build
+
+on:
+  push:
+    branches: [ uefi-driver ]
+  pull_request:
+    branches: [ uefi-driver ]
+
+env:
+  SOLUTION_FILE_PATH: ./uefi-driver.sln
+  BUILD_CONFIGURATION: Release
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    strategy:
+      matrix:
+        TARGET_PLATFORM: [x64, ia32, aa64, arm]
+
+    steps:
+    - name: Checkout repository and submodules
+      uses: actions/checkout@v2
+      with:
+        submodules: recursive
+
+    - name: Add MSBuild to PATH
+      uses: microsoft/setup-msbuild@v1
+
+    - name: Build
+      working-directory: ${{env.GITHUB_WORKSPACE}}
+      run: msbuild ${{env.SOLUTION_FILE_PATH}} /m /p:Configuration=${{env.BUILD_CONFIGURATION}},Platform=${{matrix.TARGET_PLATFORM}}
