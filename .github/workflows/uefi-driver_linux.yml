@@ -1,4 +1,4 @@
-name: UEFI driver - Linux (gcc/EDK2) build
+name: UEFI driver - Linux (gcc with EDK2) build
 
 on:
   push:
@@ -11,6 +11,7 @@ env:
   BUILD_TYPE: RELEASE
   GCC5_ARM_PREFIX: arm-linux-gnueabi-
   GCC5_AARCH64_PREFIX: aarch64-linux-gnu-
+  GCC5_RISCV64_PREFIX: riscv64-linux-gnu-
 
 jobs:
   build:
@@ -31,11 +32,17 @@ jobs:
         - TARGET_TYPE: arm
           TARGET_ARCH: ARM
           TARGET_PKGS: gcc-arm-linux-gnueabi python3-distutils uuid-dev
+        - TARGET_TYPE: riscv64
+          TARGET_ARCH: RISCV64
+          TARGET_PKGS: gcc-riscv64-linux-gnu python3-distutils uuid-dev
 
     steps:
     - uses: actions/checkout@v2
     - name: Setup Linux environment
       run: sudo apt install -y ${{matrix.TARGET_PKGS}}
+    - name: Fix missing Risc-V header
+      if: matrix.TARGET_TYPE == 'riscv64'
+      run: sudo ln -s /usr/riscv64-linux-gnu/include/gnu/stubs-lp64d.h /usr/riscv64-linux-gnu/include/gnu/stubs-lp64.h
     - name: Setup EDK2
       run: |
         git clone --recursive https://github.com/tianocore/edk2.git

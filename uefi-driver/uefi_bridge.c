@@ -673,7 +673,7 @@ VOID
 NtfsCloseFile(EFI_NTFS_FILE* File)
 {
 	EFI_NTFS_FILE* Parent = NULL;
-	u64 parent_inum;
+	u64 parent_inum = 0;
 
 	if (File == NULL || File->NtfsInode == NULL)
 		return;
@@ -1127,7 +1127,7 @@ NtfsMoveFile(EFI_NTFS_FILE* File, CHAR16* NewPath)
 	ntfs_inode *ni, *parent_ni = NULL, *newparent_ni = NULL;
 	char* basename = NULL;
 	INTN TmpLen, Len = SafeStrLen(NewPath);
-	u64 parent_inum, newparent_inum;
+	u64 parent_inum, newparent_inum = 0;
 
 	/* Nothing to do if new and old paths are the same */
 	if (StrCmp(File->Path, NewPath) == 0)

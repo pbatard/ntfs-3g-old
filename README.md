@@ -62,15 +62,16 @@ source $EDK2_PATH/edksetup.sh --reconfig
 build -a X64 -b RELEASE -t GCC5 -p uefi-driver.dsc
 ```
 
-You may also use `IA32`, `ARM` or `AARCH64` for the `-a` parameter to build a
-driver for these architectures noting however that you need to have the relevant
-toolchain and GCC prefix set.
+You may also use `IA32`, `ARM`, `AARCH64` or `RISCV64` for the `-a` parameter to
+build a driver for these architectures noting however that you need to have the
+relevant toolchain and GCC prefix set.
 
-For instance, to compile for ARM or ARM64, you would need to also issue:
+For instance, to compile for ARM, ARM64 and RISCV64, you would need to also issue:
 
 ```
 export GCC5_ARM_PREFIX=arm-linux-gnueabi-
 export GCC5_AARCH64_PREFIX=aarch64-linux-gnu-
+export GCC5_RISCV64_PREFIX=riscv64-linux-gnu-
 ```
 
 ### Windows ([gnu-efi](https://sourceforge.net/p/gnu-efi/code/ci/master/tree/))

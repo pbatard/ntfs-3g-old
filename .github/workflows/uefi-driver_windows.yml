@@ -1,4 +1,4 @@
-name: UEFI driver - Windows (MSVC/gnu-efi) build
+name: UEFI driver - Windows (MSVC with gnu-efi) build
 
 on:
   push:
