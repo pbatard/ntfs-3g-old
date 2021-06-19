@@ -46,6 +46,10 @@ jobs:
     - name: Setup EDK2
       run: |
         git clone --recursive https://github.com/tianocore/edk2.git
+        cd edk2
+        git -c advice.detachedHead=false checkout edk2-stable202105
+        git apply ../*.patch
+        cd ..
         make -C edk2/BaseTools
     - name: Build UEFI drivers
       run: |

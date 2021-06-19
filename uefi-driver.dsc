@@ -32,6 +32,8 @@
   *_*_*_CC_FLAGS                 = -DFORCE_READONLY
 !endif
 
+!include MdePkg/MdeLibs.dsc.inc
+
 [LibraryClasses]
   #
   # Entry Point Libraries
