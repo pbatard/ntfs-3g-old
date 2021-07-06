@@ -53,7 +53,9 @@
 #endif
 
 #ifdef ENABLE_DEBUG
+#ifndef UEFI_DRIVER
 static int tab;
+#endif
 #endif
 
 /* Some gcc 3.x, 4.[01].X crash with internal compiler error. */
