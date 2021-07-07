@@ -72,8 +72,18 @@ int ffs(int i)
 	else
 		return 0;
 #else
-	/* Expect a GNUC compatible built-in */
-	return __builtin_ffs(i);
+	/*
+	 * A GCC bug prevents us from using __builtin_ffs() on RISC-V.
+	 * See https://bugzilla.tianocore.org/show_bug.cgi?id=3459
+	 */
+	if (i == 0)
+		return 0;
+	int pos = 0;
+	while (!(i & 1)) {
+		i >>= 1;
+		++pos;
+	}
+	return pos + 1;
 #endif /* _MSC_VER */
 }
 
