@@ -45,10 +45,16 @@
 static inline int _to_utf8(CONST CHAR16* Src, char** dst, const char* function)
 {
 	/* ntfs_ucstombs() can be used to convert to UTF-8 */
+	bool needs_free = (dst != NULL) && (*dst == NULL);
 	int sz = ntfs_ucstombs(Src, SafeStrLen(Src), dst, 0);
-	if (sz <= 0)
+	if (sz <= 0) {
 		PrintError(L"%a failed to convert '%s': %a\n",
 			function, Src, strerror(errno));
+		if (needs_free) {
+			free(*dst);
+			*dst = NULL;
+		}
+	}
 	return sz;
 }
 
@@ -211,7 +217,7 @@ VOID NtfsSetErrno(EFI_STATUS Status)
 	case EFI_END_OF_MEDIA:
 		errno = EFBIG; break;
 	case EFI_END_OF_FILE:
-		errno = ESPIPE;
+		errno = ESPIPE; break;
 	case EFI_COMPROMISED_DATA:
 	case EFI_NO_MAPPING:
 	default:
