@@ -63,6 +63,12 @@ ElseIf (TARGET = "ARM64") Then
   FW_BASE   = "QEMU_EFI"
   EDK_ARCH  = "AARCH64"
 Else
+' MSVC does not support RISC-V yet, but EDK2 does. To test the RISC-V EDK2 driver you can:
+' 1. Download the RISCVVIRT.fd QEMU firmware such as the one found in the artifacts from:
+'    https://github.com/riscv/riscv-edk2-platforms/actions/runs/885101747
+' 2. Create a `disk.img` with 2 partition (FAT32 + NTFS) and copy the NTFS driver to the
+'    FAT32 one. Note that you can't currently use separate disk images with Risc-V QEMU.
+' 3. Run: "C:\Program Files\qemu\qemu-system-riscv64w.exe" -machine virt -nodefaults -vga std -serial vc -L . -bios RISCVVIRT.fd -m 2048 -smp cpus=1,maxcpus=1 -device virtio-blk-device,drive=hd0 -drive file=disk.img,format=raw,id=hd0
   MsgBox("Unsupported debug target: " & TARGET)
   Call WScript.Quit(1)
 End If
@@ -189,4 +195,5 @@ Call file.Write("set FS_LOGGING " & LOG_LEVEL & vbCrLf &_
   "map -r" & vbCrLf &_
   PRE_CMD & MNT & "\EFI\Boot\boot" & UEFI_EXT & ".efi" & vbCrLf)
 Call file.Close()
+' MsgBox("""" & QEMU_PATH & QEMU_EXE & """ " & QEMU_OPTS & " -L . -bios " & FW_FILE & " -hda fat:rw:image -hdb " & IMG)
 Call shell.Run("""" & QEMU_PATH & QEMU_EXE & """ " & QEMU_OPTS & " -L . -bios " & FW_FILE & " -hda fat:rw:image -hdb " & IMG, 1, True)

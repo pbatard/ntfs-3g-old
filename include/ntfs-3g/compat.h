@@ -72,6 +72,10 @@
 #define __inline__ __inline
 #define __attribute__(X)
 
+#elif defined(__STDC__) && defined(__STDC_VERSION__) && (__STDC_VERSION__ < 201112L)
+
+#define _Static_assert(...)
+
 #endif /* _MSC_VER */
 
 #ifndef PATH_MAX

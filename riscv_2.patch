@@ -1,18 +1,31 @@
-From sunilvl@ventanamicro.com Thu Jun 17 20:01:11 2021
-Return-Path: <sunilvl@ventanamicro.com>
-From: Sunil V L <sunilvl@ventanamicro.com>
-To: sunilvl@ventanamicro.com
 Subject: [PATCH] BaseTools GenFw: Add support for R_RISCV_PCREL_LO12_S relocation
-Date: Thu, 17 Jun 2021 20:01:06 +0530
+From: Sunil V L <sunilvl@ventanamicro.com>
+Date: 2021.07.10, 07:31
+To: devel@edk2.groups.io
+CC: sunil.vl@gmail.com, Sunil V L <sunilvl@ventanamicro.com>, Liming Gao <gaoliming@byosoft.com.cn>, Bob Feng <bob.c.feng@intel.com>, Yuwei Chen <yuwei.chen@intel.com>, Pete Batard <pete@akeo.ie>, Abner Chang <abner.chang@hpe.com>, Daniel Schaefer <daniel.schaefer@hpe.com>
+
+Ref: https://bugzilla.tianocore.org/show_bug.cgi?id=3459
+
+This patch adds support for R_RISCV_PCREL_LO12_S relocation type.
+The logic is same as existing R_RISCV_PCREL_LO12_I relocation
+except the difference between load vs store instruction formats.
+
 Signed-off-by: Sunil V L <sunilvl@ventanamicro.com>
+
+Cc: Liming Gao <gaoliming@byosoft.com.cn>
+Cc: Bob Feng <bob.c.feng@intel.com>
+Cc: Yuwei Chen <yuwei.chen@intel.com>
+Cc: Pete Batard <pete@akeo.ie>
+Cc: Abner Chang <abner.chang@hpe.com>
+Cc: Daniel Schaefer <daniel.schaefer@hpe.com>
 ---
  BaseTools/Source/C/GenFw/Elf64Convert.c | 55 +++++++++++++++++++++++++
  1 file changed, 55 insertions(+)
 diff --git a/BaseTools/Source/C/GenFw/Elf64Convert.c b/BaseTools/Source/C/GenFw/Elf64Convert.c
-index 6bced31094..c533958d0a 100644
+index 3d7e20aaff..0bb3ead228 100644
 --- a/BaseTools/Source/C/GenFw/Elf64Convert.c
 +++ b/BaseTools/Source/C/GenFw/Elf64Convert.c
-@@ -556,6 +556,60 @@ WriteSectionRiscV64 (
+@@ -557,6 +557,60 @@ WriteSectionRiscV64 (
      Value = (UINT32)(RV_X(*(UINT32 *)mRiscVPass1Targ, 12, 20));
      break;
  
@@ -73,7 +86,7 @@ index 6bced31094..c533958d0a 100644
    case R_RISCV_PCREL_LO12_I:
      if (mRiscVPass1Targ != NULL && mRiscVPass1Sym != NULL && mRiscVPass1SymSecIndex != 0) {
        int i;
-@@ -1586,6 +1640,7 @@ WriteRelocations64 (
+@@ -1587,6 +1641,7 @@ WriteRelocations64 (
              case R_RISCV_PCREL_HI20:
              case R_RISCV_GOT_HI20:
              case R_RISCV_PCREL_LO12_I:
@@ -81,4 +94,4 @@ index 6bced31094..c533958d0a 100644
                break;
  
              default:
--- 2.25.1
+-- 2.32.0
