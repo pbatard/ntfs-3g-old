@@ -1663,6 +1663,8 @@ static struct CACHED_PERMISSIONS *enter_cache(struct SECURITY_CONTEXT *scx,
 				cacheblock = (struct CACHED_PERMISSIONS*)
 					malloc(sizeof(struct CACHED_PERMISSIONS)
 						<< CACHE_PERMISSIONS_BITS);
+				if (!cacheblock)
+					return NULL;
 				pcache->cachetable[index1] = cacheblock;
 				for (i=0; i<(1 << CACHE_PERMISSIONS_BITS); i++)
 					cacheblock[i].valid = 0;
@@ -4211,7 +4213,8 @@ static int ntfs_do_default_mapping(struct SECURITY_CONTEXT *scx,
 				scx->mapping[MAPGROUPS] = groupmapping;
 				res = 0;
 			}
-		}
+		} else
+			ntfs_free(sid);
 	}
 	return (res);
 }
@@ -4354,7 +4357,7 @@ int ntfs_build_mapping(struct SECURITY_CONTEXT *scx, const char *usermap_path,
 	if (!usermap_path) usermap_path = MAPPINGFILE;
 	if (usermap_path[0] == '/') {
 		fd = open(usermap_path,O_RDONLY);
-		if (fd > 0) {
+		if (fd >= 0) {
 			firstitem = ntfs_read_mapping(basicread, (void*)&fd);
 			close(fd);
 		} else

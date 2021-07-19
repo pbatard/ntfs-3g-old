@@ -113,6 +113,7 @@ void* calloc(size_t nmemb, size_t size)
 	return &ptr[1];
 }
 
+/* NB: As opposed to libc's realloc(), this realloc() always frees the old pointer */
 void* realloc(void* p, size_t new_size)
 {
 	size_t* ptr = (size_t*)p;

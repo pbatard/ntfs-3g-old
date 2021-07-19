@@ -607,6 +607,7 @@ static char *ntfs_get_fulllink(ntfs_volume *vol, ntfschar *junction,
 				strcat(fulltarget,target);
 			}
 			free(target);
+			target = NULL;
 		}
 	}
 			/*
@@ -716,6 +717,7 @@ char *ntfs_get_abslink(ntfs_volume *vol, ntfschar *junction, int count,
 				strcat(fulltarget,target);
 			}
 			free(target);
+			target = NULL;
 		}
 	}
 			/*
@@ -1087,7 +1089,7 @@ static int update_reparse_data(ntfs_inode *ni, ntfs_index_context *xr,
 					res = -1;
 				}
 			}
-			if (!res
+			if (!res && value
 			    && set_reparse_index(ni,xr,
 				((const REPARSE_POINT*)value)->reparse_tag)
 			    && (oldsize > 0)) {

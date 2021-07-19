@@ -354,9 +354,12 @@ static int update_object_id(ntfs_inode *ni, ntfs_index_context *xo,
 				}
 			}
 				/* overwrite index data with new value */
-			memcpy(&old_attr, value,
-				(size < sizeof(OBJECT_ID_ATTR)
-					? size : sizeof(OBJECT_ID_ATTR)));
+			if (value)
+				memcpy(&old_attr, value,
+					(size < sizeof(OBJECT_ID_ATTR)
+						? size : sizeof(OBJECT_ID_ATTR)));
+			else
+				ntfs_log_error("Failed to overwrite index data.\n");
 			if (!res
 			    && set_object_id_index(ni,xo,&old_attr)) {
 				/*
