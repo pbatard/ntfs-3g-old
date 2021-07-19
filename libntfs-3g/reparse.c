@@ -1098,7 +1098,7 @@ static int update_reparse_data(ntfs_inode *ni, ntfs_index_context *xr,
 				 * data and log the error. There will be an
 				 * inconsistency if removal fails.
 				 */
-				ntfs_attr_rm(na);
+				IGNORE_RETVAL(ntfs_attr_rm(na));
 				ntfs_log_error("Failed to index reparse data."
 						" Possible corruption.\n");
 			}

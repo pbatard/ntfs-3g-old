@@ -669,7 +669,7 @@ static le32 entersecurityattr(ntfs_volume *vol,
 			/* restore errno to avoid misinterpretation */
 		errno = olderrno;
 		entry = xsii->entry;
-		psii = (struct SII*)xsii->entry;
+		psii = (struct SII*)entry;
 	}
 	if (psii) {
 		/*

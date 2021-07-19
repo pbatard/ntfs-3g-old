@@ -4424,7 +4424,8 @@ struct MAPPING *ntfs_do_user_mapping(struct MAPLIST *firstitem)
 					else
 						firstmapping = mapping;
 					lastmapping = mapping;
-				}
+				} else
+					ntfs_free(sid);
 			}
 		}
 	}
