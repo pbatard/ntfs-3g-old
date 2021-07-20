@@ -1,10 +1,6 @@
 name: ntfs-3g - Linux (gcc, Clang) build 
 
-on:
-  push:
-    branches: [ uefi-driver ]
-  pull_request:
-    branches: [ uefi-driver ]
+on: push
 
 jobs:
   build:

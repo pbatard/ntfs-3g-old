@@ -1,10 +1,6 @@
 name: UEFI driver - Windows (MSVC with gnu-efi) build
 
-on:
-  push:
-    branches: [ uefi-driver ]
-  pull_request:
-    branches: [ uefi-driver ]
+on: push
 
 env:
   SOLUTION_FILE_PATH: ./uefi-driver.sln
